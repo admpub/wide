@@ -1,3 +1,17 @@
+// Copyright (c) 2014, B3log
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package editor
 
 import (
@@ -6,24 +20,32 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/88250/gohtml"
+	"github.com/b3log/wide/conf"
+	"github.com/b3log/wide/session"
 	"github.com/b3log/wide/util"
-	"github.com/golang/glog"
 )
 
-// TODO: 加入 goimports 格式化 Go 源码文件
-
-// gofmt 格式化 Go 源码文件.
+// GoFmtHandler handles request of formatting Go source code.
+//
+// This function will select a format tooll based on user's configuration:
+//  1. gofmt
+//  2. goimports
 func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
 	defer util.RetJSON(w, r, data)
 
-	decoder := json.NewDecoder(r.Body)
+	session, _ := session.HTTPSession.Get(r, "wide-session")
+	if session.IsNew {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+
+		return
+	}
+	username := session.Values["username"].(string)
 
 	var args map[string]interface{}
 
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
 		data["succ"] = false
 
 		return
@@ -31,10 +53,15 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 
 	filePath := args["file"].(string)
 
+	if util.Go.IsAPI(filePath) {
+		// ignore it
+		return
+	}
+
 	fout, err := os.Create(filePath)
 
 	if nil != err {
-		glog.Error(err)
+		logger.Error(err)
 		data["succ"] = false
 
 		return
@@ -44,19 +71,23 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 
 	fout.WriteString(code)
 	if err := fout.Close(); nil != err {
-		glog.Error(err)
+		logger.Error(err)
 		data["succ"] = false
 
 		return
 	}
 
+	fmt := conf.Wide.GetGoFmt(username)
+
 	argv := []string{filePath}
-	cmd := exec.Command("gofmt", argv...)
+	cmd := exec.Command(fmt, argv...)
 
 	bytes, _ := cmd.Output()
 	output := string(bytes)
 	if "" == output {
-		data["succ"] = false
+		// format error, returns the original content
+		data["succ"] = true
+		data["code"] = code
 
 		return
 	}
@@ -67,132 +98,7 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 	fout, err = os.Create(filePath)
 	fout.WriteString(code)
 	if err := fout.Close(); nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-}
-
-// 格式化 HTML 文件.
-// FIXME：依赖的工具 gohtml 格式化 HTML 时有问题
-func HTMLFmtHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
-
-	decoder := json.NewDecoder(r.Body)
-
-	var args map[string]interface{}
-
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	filePath := args["file"].(string)
-
-	fout, err := os.Create(filePath)
-
-	if nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	code := args["code"].(string)
-
-	fout.WriteString(code)
-	if err := fout.Close(); nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	output := gohtml.Format(code)
-	if "" == output {
-		data["succ"] = false
-
-		return
-	}
-
-	code = string(output)
-	data["code"] = code
-
-	fout, err = os.Create(filePath)
-	fout.WriteString(code)
-	if err := fout.Close(); nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-}
-
-// 格式化 JSON 文件.
-func JSONFmtHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
-
-	decoder := json.NewDecoder(r.Body)
-
-	var args map[string]interface{}
-
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	filePath := args["file"].(string)
-
-	fout, err := os.Create(filePath)
-
-	if nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	code := args["code"].(string)
-
-	fout.WriteString(code)
-	if err := fout.Close(); nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	obj := new(interface{})
-	if err := json.Unmarshal([]byte(code), &obj); nil != err {
-		glog.Error(err)
-		data["succ"] = false
-
-		return
-	}
-
-	glog.Info(obj)
-
-	bytes, err := json.MarshalIndent(obj, "", "    ")
-	if nil != err {
-		data["succ"] = false
-
-		return
-	}
-
-	code = string(bytes)
-	data["code"] = code
-
-	fout, err = os.Create(filePath)
-	fout.WriteString(code)
-	if err := fout.Close(); nil != err {
-		glog.Error(err)
+		logger.Error(err)
 		data["succ"] = false
 
 		return

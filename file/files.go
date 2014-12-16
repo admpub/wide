@@ -1,4 +1,18 @@
-// 文件树操作.
+// Copyright (c) 2014, B3log
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package file includes file related manipulations.
 package file
 
 import (
@@ -7,149 +21,194 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/b3log/wide/conf"
+	"github.com/b3log/wide/event"
+	"github.com/b3log/wide/log"
 	"github.com/b3log/wide/session"
 	"github.com/b3log/wide/util"
-	"github.com/golang/glog"
 )
 
-// 文件节点，用于构造文件树.
-type FileNode struct {
-	Name      string      `json:"name"`
-	Path      string      `json:"path"`
-	IconSkin  string      `json:"iconSkin"` // 值的末尾应该有一个空格
-	Type      string      `json:"type"`     // "f"：文件，"d"：文件夹
-	Mode      string      `json:"mode"`
-	FileNodes []*FileNode `json:"children"`
+// Logger.
+var logger = log.NewLogger(os.Stdout)
+
+// Node represents a file node in file tree.
+type Node struct {
+	Name      string  `json:"name"`
+	Path      string  `json:"path"`
+	IconSkin  string  `json:"iconSkin"`  // Value should be end with a space
+	Type      string  `json:"type"`      // "f": file, "d": directory
+	Creatable bool    `json:"creatable"` // whether can create file in this file node
+	Removable bool    `json:"removable"` // whether can remove this file node
+	Mode      string  `json:"mode"`
+	Children  []*Node `json:"children"`
 }
 
-// 代码片段. 这个结构可用于“查找使用”、“文件搜索”等的返回值.
+// Snippet represents a source code snippet, used to as the result of "Find Usages", "Search".
 type Snippet struct {
-	Path     string   `json:"path"`     // 文件路径
-	Line     int      `json:"line"`     // 行号
-	Ch       int      `json:"ch"`       // 列号
-	Contents []string `json:"contents"` // 附近几行
+	Path     string   `json:"path"`     // file path
+	Line     int      `json:"line"`     // line number
+	Ch       int      `json:"ch"`       // column number
+	Contents []string `json:"contents"` // lines nearby
 }
 
-// 构造用户工作空间文件树.
+var apiNode *Node
+
+// initAPINode builds the Go API file node.
+func initAPINode() {
+	apiPath := util.Go.GetAPIPath()
+
+	apiNode = &Node{Name: "Go API", Path: apiPath, IconSkin: "ico-ztree-dir-api ", Type: "d",
+		Creatable: false, Removable: false, Children: []*Node{}}
+
+	walk(apiPath, apiNode, false, false)
+}
+
+// GetFiles handles request of constructing user workspace file tree.
 //
-// 将 Go API 源码包（$GOROOT/src/pkg）也作为子节点，这样能方便用户查看 Go API 源码.
+// The Go API source code package also as a child node,
+// so that users can easily view the Go API source code in file tree.
 func GetFiles(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	defer util.RetGzJSON(w, r, data)
 
 	session, _ := session.HTTPSession.Get(r, "wide-session")
+	if session.IsNew {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 
+		return
+	}
 	username := session.Values["username"].(string)
-	userSrc := conf.Wide.GetUserWorkspace(username) + conf.PathSeparator + "src"
 
-	root := FileNode{Name: "projects", Path: userSrc, IconSkin: "ico-ztree-dir ", Type: "d", FileNodes: []*FileNode{}}
+	userWorkspace := conf.Wide.GetUserWorkspace(username)
+	workspaces := filepath.SplitList(userWorkspace)
 
-	// 构造 Go API 节点
-	apiPath := runtime.GOROOT() + conf.PathSeparator + "src" + conf.PathSeparator + "pkg"
-	apiNode := FileNode{Name: "Go API", Path: apiPath, FileNodes: []*FileNode{}}
+	root := Node{Name: "root", Path: "", IconSkin: "ico-ztree-dir ", Type: "d", Children: []*Node{}}
 
-	goapiBuildOKSignal := make(chan bool)
-	go func() {
-		apiNode.Type = "d"
-		// TOOD: Go API 用另外的样式
-		apiNode.IconSkin = "ico-ztree-dir "
+	if nil == apiNode { // lazy init
+		initAPINode()
+	}
 
-		walk(apiPath, &apiNode)
+	// workspace node process
+	for _, workspace := range workspaces {
+		workspacePath := workspace + conf.PathSeparator + "src"
 
-		// 放行信号
-		close(goapiBuildOKSignal)
-	}()
+		workspaceNode := Node{Name: workspace[strings.LastIndex(workspace, conf.PathSeparator)+1:],
+			Path: workspacePath, IconSkin: "ico-ztree-dir-workspace ", Type: "d",
+			Creatable: true, Removable: false, Children: []*Node{}}
 
-	// 构造用户工作空间文件树
-	walk(userSrc, &root)
+		walk(workspacePath, &workspaceNode, true, true)
 
-	// 等待放行
-	<-goapiBuildOKSignal
+		// add workspace node
+		root.Children = append(root.Children, &workspaceNode)
+	}
 
-	// 添加 Go API 节点
-	root.FileNodes = append(root.FileNodes, &apiNode)
+	// add Go API node
+	root.Children = append(root.Children, apiNode)
 
 	data["root"] = root
 }
 
-// 编辑器打开一个文件.
+// RefreshDirectory handles request of refresh a directory of file tree.
+func RefreshDirectory(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	path := r.FormValue("path")
+
+	node := Node{Name: "root", Path: path, IconSkin: "ico-ztree-dir ", Type: "d", Children: []*Node{}}
+
+	walk(path, &node, true, true)
+
+	w.Header().Set("Content-Type", "application/json")
+	data, err := json.Marshal(node.Children)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	w.Write(data)
+}
+
+// GetFile handles request of opening file by editor.
 func GetFile(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
 	defer util.RetJSON(w, r, data)
 
-	decoder := json.NewDecoder(r.Body)
-
 	var args map[string]interface{}
 
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
 		data["succ"] = false
 
 		return
 	}
 
 	path := args["path"].(string)
-	buf, _ := ioutil.ReadFile(path)
 
-	extension := filepath.Ext(path)
-
-	// 通过文件扩展名判断是否是图片文件（图片在浏览器里新建 tab 打开）
-	if isImg(extension) {
-		data["mode"] = "img"
-
-		path2 := strings.Replace(path, "\\", "/", -1)
-		idx := strings.Index(path2, "/data/user_workspaces")
-		data["path"] = path2[idx:]
+	size := util.File.GetFileSize(path)
+	if size > 5242880 { // 5M
+		data["succ"] = false
+		data["msg"] = "This file is too large to open :("
 
 		return
 	}
 
-	isBinary := false
-	// 判断是否是其他二进制文件
-	for _, b := range buf {
-		if 0 == b { // 包含 0 字节就认为是二进制文件
-			isBinary = true
+	buf, _ := ioutil.ReadFile(path)
+
+	extension := filepath.Ext(path)
+
+	if util.File.IsImg(extension) {
+		// image file will be open in a browser tab
+
+		data["mode"] = "img"
+
+		user := GetUsre(path)
+		if nil == user {
+			logger.Warnf("The path [%s] has no owner")
+			data["path"] = ""
+
+			return
 		}
+
+		data["path"] = "/workspace/" + user.Name + "/" + strings.Replace(path, user.GetWorkspace(), "", 1)
+
+		return
 	}
 
-	if isBinary {
-		// 是二进制文件的话前端编辑器不打开
+	content := string(buf)
+
+	if util.File.IsBinary(content) {
 		data["succ"] = false
 		data["msg"] = "Can't open a binary file :("
 	} else {
-		data["content"] = string(buf)
+		data["content"] = content
 		data["mode"] = getEditorMode(extension)
 		data["path"] = path
 	}
 }
 
-// 保存文件.
+// SaveFile handles request of saving file.
 func SaveFile(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
 	defer util.RetJSON(w, r, data)
 
-	decoder := json.NewDecoder(r.Body)
-
 	var args map[string]interface{}
 
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
 		data["succ"] = false
 
 		return
 	}
 
 	filePath := args["file"].(string)
+	sid := args["sid"].(string)
 
 	fout, err := os.Create(filePath)
 
 	if nil != err {
-		glog.Error(err)
+		logger.Error(err)
 		data["succ"] = false
 
 		return
@@ -160,24 +219,26 @@ func SaveFile(w http.ResponseWriter, r *http.Request) {
 	fout.WriteString(code)
 
 	if err := fout.Close(); nil != err {
-		glog.Error(err)
+		logger.Error(err)
 		data["succ"] = false
+
+		wSession := session.WideSessions.Get(sid)
+		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
+			Data: "can't save file " + filePath}
 
 		return
 	}
 }
 
-// 新建文件/目录.
+// NewFile handles request of creating file or directory.
 func NewFile(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
 	defer util.RetJSON(w, r, data)
 
-	decoder := json.NewDecoder(r.Body)
-
 	var args map[string]interface{}
 
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
 		data["succ"] = false
 
 		return
@@ -185,9 +246,15 @@ func NewFile(w http.ResponseWriter, r *http.Request) {
 
 	path := args["path"].(string)
 	fileType := args["fileType"].(string)
+	sid := args["sid"].(string)
+
+	wSession := session.WideSessions.Get(sid)
 
 	if !createFile(path, fileType) {
 		data["succ"] = false
+
+		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
+			Data: "can't create file " + path}
 
 		return
 	}
@@ -198,30 +265,122 @@ func NewFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 删除文件/目录.
+// RemoveFile handles request of removing file or directory.
 func RemoveFile(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
 	defer util.RetJSON(w, r, data)
 
-	decoder := json.NewDecoder(r.Body)
-
 	var args map[string]interface{}
 
-	if err := decoder.Decode(&args); err != nil {
-		glog.Error(err)
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
 		data["succ"] = false
 
 		return
 	}
 
 	path := args["path"].(string)
+	sid := args["sid"].(string)
+
+	wSession := session.WideSessions.Get(sid)
 
 	if !removeFile(path) {
 		data["succ"] = false
+
+		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
+			Data: "can't remove file " + path}
 	}
 }
 
-// 在目录中搜索包含指定字符串的文件.
+// RenameFile handles request of renaming file or directory.
+func RenameFile(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{"succ": true}
+	defer util.RetJSON(w, r, data)
+
+	var args map[string]interface{}
+
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
+		data["succ"] = false
+
+		return
+	}
+
+	oldPath := args["oldPath"].(string)
+	newPath := args["newPath"].(string)
+	sid := args["sid"].(string)
+
+	wSession := session.WideSessions.Get(sid)
+
+	if !renameFile(oldPath, newPath) {
+		data["succ"] = false
+
+		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
+			Data: "can't rename file " + oldPath}
+	}
+}
+
+// Use to find results sorting.
+type foundPath struct {
+	Path  string `json:"path"`
+	score int
+}
+
+type foundPaths []*foundPath
+
+func (f foundPaths) Len() int           { return len(f) }
+func (f foundPaths) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
+func (f foundPaths) Less(i, j int) bool { return f[i].score > f[j].score }
+
+// Find handles request of find files under the specified directory with the specified filename pattern.
+func Find(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{"succ": true}
+	defer util.RetJSON(w, r, data)
+
+	var args map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+		logger.Error(err)
+		data["succ"] = false
+
+		return
+	}
+
+	path := args["path"].(string) // path of selected file in file tree
+	name := args["name"].(string)
+
+	session, _ := session.HTTPSession.Get(r, "wide-session")
+	if session.IsNew {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+
+		return
+	}
+	username := session.Values["username"].(string)
+
+	userWorkspace := conf.Wide.GetUserWorkspace(username)
+	workspaces := filepath.SplitList(userWorkspace)
+
+	if "" != path && !util.File.IsDir(path) {
+		path = filepath.Dir(path)
+	}
+
+	founds := foundPaths{}
+
+	for _, workspace := range workspaces {
+		rs := find(workspace+conf.PathSeparator+"src", name, []*string{})
+
+		for _, r := range rs {
+			substr := util.Str.LCS(path, *r)
+
+			founds = append(founds, &foundPath{Path: *r, score: len(substr)})
+		}
+	}
+
+	sort.Sort(founds)
+
+	data["founds"] = founds
+}
+
+// SearchText handles request of searching files under the specified directory with the specified keyword.
 func SearchText(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{"succ": true}
 	defer util.RetJSON(w, r, data)
@@ -229,13 +388,29 @@ func SearchText(w http.ResponseWriter, r *http.Request) {
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
-		glog.Error(err)
+		logger.Error(err)
 		data["succ"] = false
 
 		return
 	}
 
+	sid := args["sid"].(string)
+	wSession := session.WideSessions.Get(sid)
+	if nil == wSession {
+		data["succ"] = false
+
+		return
+	}
+
+	// XXX: just one directory
+
 	dir := args["dir"].(string)
+	if "" == dir {
+		userWorkspace := conf.Wide.GetUserWorkspace(wSession.Username)
+		workspaces := filepath.SplitList(userWorkspace)
+		dir = workspaces[0]
+	}
+
 	extension := args["extension"].(string)
 	text := args["text"].(string)
 
@@ -244,8 +419,8 @@ func SearchText(w http.ResponseWriter, r *http.Request) {
 	data["founds"] = founds
 }
 
-// 遍历指定的路径，构造文件树.
-func walk(path string, node *FileNode) {
+// walk traverses the specified path to build a file tree.
+func walk(path string, node *Node, creatable, removable bool) {
 	files := listFiles(path)
 
 	for _, filename := range files {
@@ -253,22 +428,24 @@ func walk(path string, node *FileNode) {
 
 		fio, _ := os.Lstat(fpath)
 
-		child := FileNode{Name: filename, Path: fpath, FileNodes: []*FileNode{}}
-		node.FileNodes = append(node.FileNodes, &child)
+		child := Node{Name: filename, Path: fpath, Removable: removable, Children: []*Node{}}
+		node.Children = append(node.Children, &child)
 
 		if nil == fio {
-			glog.Warningf("Path [%s] is nil", fpath)
+			logger.Warnf("Path [%s] is nil", fpath)
 
 			continue
 		}
 
 		if fio.IsDir() {
 			child.Type = "d"
+			child.Creatable = creatable
 			child.IconSkin = "ico-ztree-dir "
 
-			walk(fpath, &child)
+			walk(fpath, &child, creatable, removable)
 		} else {
 			child.Type = "f"
+			child.Creatable = creatable
 			ext := filepath.Ext(fpath)
 
 			child.IconSkin = getIconSkin(ext)
@@ -279,7 +456,7 @@ func walk(path string, node *FileNode) {
 	return
 }
 
-// 列出 dirname 指定目录下的文件/目录名.
+// listFiles lists names of files under the specified dirname.
 func listFiles(dirname string) []string {
 	f, _ := os.Open(dirname)
 
@@ -291,12 +468,19 @@ func listFiles(dirname string) []string {
 	dirs := []string{}
 	files := []string{}
 
-	// 排序：目录靠前，文件靠后
+	// sort: directories in front of files
 	for _, name := range names {
-		fio, _ := os.Lstat(filepath.Join(dirname, name))
+		path := filepath.Join(dirname, name)
+		fio, err := os.Lstat(path)
+
+		if nil != err {
+			logger.Warnf("Can't read file info [%s]", path)
+
+			continue
+		}
 
 		if fio.IsDir() {
-			// 排除 .git 目录
+			// exclude the .git direcitory
 			if ".git" == fio.Name() {
 				continue
 			}
@@ -310,11 +494,11 @@ func listFiles(dirname string) []string {
 	return append(dirs, files...)
 }
 
-// 根据文件后缀获取文件树图标 CSS 类名.
+// getIconSkin gets CSS class name of icon with the specified filename extension.
 //
-// CSS 类名可参考 zTree 文档.
+// Refers to the zTree document for CSS class names.
 func getIconSkin(filenameExtension string) string {
-	if isImg(filenameExtension) {
+	if util.File.IsImg(filenameExtension) {
 		return "ico-ztree-img "
 	}
 
@@ -342,9 +526,9 @@ func getIconSkin(filenameExtension string) string {
 	}
 }
 
-// 根据文件后缀获取编辑器 mode.
+// getEditorMode gets editor mode with the specified filename extension.
 //
-// 编辑器 mode 可参考 CodeMirror 文档.
+// Refers to the CodeMirror document for modes.
 func getEditorMode(filenameExtension string) string {
 	switch filenameExtension {
 	case ".go":
@@ -370,58 +554,126 @@ func getEditorMode(filenameExtension string) string {
 	}
 }
 
-// 在 path 指定的路径上创建文件.
+// createFile creates file on the specified path.
 //
 // fileType:
 //
-//  "f": 文件
-//  "d": 目录
+//  "f": file
+//  "d": directory
 func createFile(path, fileType string) bool {
 	switch fileType {
 	case "f":
-		file, err := os.OpenFile(path, os.O_CREATE, 0664)
+		file, err := os.OpenFile(path, os.O_CREATE, 0775)
 		if nil != err {
-			glog.Info(err)
+			logger.Error(err)
 
 			return false
 		}
 
 		defer file.Close()
 
-		glog.Infof("Created file [%s]", path)
+		logger.Debugf("Created file [%s]", path)
 
 		return true
 	case "d":
 		err := os.Mkdir(path, 0775)
 
 		if nil != err {
-			glog.Info(err)
+			logger.Error(err)
+
+			return false
 		}
 
-		glog.Infof("Created directory [%s]", path)
+		logger.Debugf("Created directory [%s]", path)
 
 		return true
 	default:
-		glog.Infof("Unsupported file type [%s]", fileType)
+		logger.Errorf("Unsupported file type [%s]", fileType)
 
 		return false
 	}
 }
 
-// 删除 path 指定路径的文件或目录.
+// removeFile removes file on the specified path.
 func removeFile(path string) bool {
 	if err := os.RemoveAll(path); nil != err {
-		glog.Errorf("Removes [%s] failed: [%s]", path, err.Error())
+		logger.Errorf("Removes [%s] failed: [%s]", path, err.Error())
 
 		return false
 	}
 
-	glog.Infof("Removed [%s]", path)
+	logger.Debugf("Removed [%s]", path)
 
 	return true
 }
 
-// 在 dir 指定的目录（包含子目录）中的 extension 指定后缀的文件中搜索包含 text 文本的文件，类似 grep/findstr 命令.
+// renameFile renames (moves) a file from the specified old path to the specified new path.
+func renameFile(oldPath, newPath string) bool {
+	if err := os.Rename(oldPath, newPath); nil != err {
+		logger.Errorf("Renames [%s] failed: [%s]", oldPath, err.Error())
+
+		return false
+	}
+
+	logger.Debugf("Renamed [%s] to [%s]", oldPath, newPath)
+
+	return true
+}
+
+// Default exclude file name patterns when find.
+var defaultExcludesFind = []string{".git", ".svn", ".repository", "CVS", "RCS", "SCCS", ".bzr", ".metadata", ".hg"}
+
+// find finds files under the specified dir and its sub-directoryies with the specified name,
+// likes the command 'find dir -name name'.
+func find(dir, name string, results []*string) []*string {
+	if !strings.HasSuffix(dir, conf.PathSeparator) {
+		dir += conf.PathSeparator
+	}
+
+	f, _ := os.Open(dir)
+	fileInfos, err := f.Readdir(-1)
+	f.Close()
+
+	if nil != err {
+		logger.Errorf("Read dir [%s] failed: [%s]", dir, err.Error())
+
+		return results
+	}
+
+	for _, fileInfo := range fileInfos {
+		fname := fileInfo.Name()
+		path := dir + fname
+
+		if fileInfo.IsDir() {
+			if util.Str.Contains(fname, defaultExcludesFind) {
+				continue
+			}
+
+			// enter the directory recursively
+			results = find(path, name, results)
+		} else {
+			// match filename
+			pattern := filepath.Dir(path) + conf.PathSeparator + name
+
+			match, err := filepath.Match(strings.ToLower(pattern), strings.ToLower(path))
+
+			if nil != err {
+				logger.Errorf("Find match filename failed: [%s]", err.Error)
+
+				continue
+			}
+
+			if match {
+				results = append(results, &path)
+			}
+		}
+	}
+
+	return results
+}
+
+// search finds file under the specified dir and its sub-directories with the specified text, likes the command 'grep'
+// or 'findstr'.
 func search(dir, extension, text string, snippets []*Snippet) []*Snippet {
 	if !strings.HasSuffix(dir, conf.PathSeparator) {
 		dir += conf.PathSeparator
@@ -432,7 +684,7 @@ func search(dir, extension, text string, snippets []*Snippet) []*Snippet {
 	f.Close()
 
 	if nil != err {
-		glog.Errorf("Read dir [%s] failed: [%s]", dir, err.Error())
+		logger.Errorf("Read dir [%s] failed: [%s]", dir, err.Error())
 
 		return snippets
 	}
@@ -441,10 +693,10 @@ func search(dir, extension, text string, snippets []*Snippet) []*Snippet {
 		path := dir + fileInfo.Name()
 
 		if fileInfo.IsDir() {
-			// 进入目录递归
+			// enter the directory recursively
 			snippets = search(path, extension, text, snippets)
 		} else if strings.HasSuffix(path, extension) {
-			// 在文件中进行搜索
+			// grep in file
 			ss := searchInFile(path, text)
 
 			snippets = append(snippets, ss...)
@@ -454,18 +706,22 @@ func search(dir, extension, text string, snippets []*Snippet) []*Snippet {
 	return snippets
 }
 
-// 在 path 指定的文件内容中搜索 text 指定的文本.
+// searchInFile finds file with the specified path and text.
 func searchInFile(path string, text string) []*Snippet {
 	ret := []*Snippet{}
 
 	bytes, err := ioutil.ReadFile(path)
 	if nil != err {
-		glog.Errorf("Read file [%s] failed: [%s]", path, err.Error())
+		logger.Errorf("Read file [%s] failed: [%s]", path, err.Error())
 
 		return ret
 	}
 
 	content := string(bytes)
+	if util.File.IsBinary(content) {
+		return ret
+	}
+
 	lines := strings.Split(content, "\n")
 
 	for idx, line := range lines {
@@ -481,14 +737,13 @@ func searchInFile(path string, text string) []*Snippet {
 	return ret
 }
 
-// 根据文件名后缀判断是否是图片文件.
-func isImg(extension string) bool {
-	ext := strings.ToLower(extension)
-
-	switch ext {
-	case ".jpg", ".jpeg", ".bmp", ".gif", ".png", ".svg", ".ico":
-		return true
-	default:
-		return false
+// GetUsre gets the user the specified path belongs to. Returns nil if not found.
+func GetUsre(path string) *conf.User {
+	for _, user := range conf.Wide.Users {
+		if strings.HasPrefix(path, user.GetWorkspace()) {
+			return user
+		}
 	}
+
+	return nil
 }

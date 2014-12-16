@@ -1,3 +1,19 @@
+/* 
+ * Copyright (c) 2014, B3log
+ *  
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *  
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *  
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDIT#buildRunIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */ 
+
 /* start icon */
 @font-face {
     font-family: 'icomoon';
@@ -15,18 +31,129 @@
     /* Better Font Rendering =========== */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    color: #666;
     cursor: pointer;
     font-size: 13px;
-    line-height: 18px;
+    line-height: 20px;
 }
 
-.font-ico:hover {
-    color: #333;
+.ico-share:before {
+    content: "\e61f";
 }
 
-.ico-play:before {
+.ico-github:before {
+    content: "\f00a";
+}
+
+.ico-tencent:before {
+    content: "\e622";
+}
+
+.ico-weibo:before {
+    content: "\e621";
+}
+
+.ico-googleplus:before {
+    content: "\e61a";
+}
+
+.ico-twitter:before {
+    content: "\e61c";
+}
+
+.ico-email:before {
+    content: "\e619";
+}
+
+.ico-facebook:before {
+    content: "\e61b";
+}
+
+.ico-moveup:before {
+    content: "\f148";
+}
+
+.ico-movedown:before {
+    content: "\f149";
+}
+
+.ico-keyboard:before {
+    content: "\f11c";
+}
+
+.ico-findfiles:before {
+    content: "\e603";
+}
+
+.ico-find:before {
+    content: "\e602";
+}
+
+.ico-editor:before {
+    content: "\e604";
+}
+
+.ico-tree:before {
+    content: "\e600";
+}
+
+.ico-build:before {
+    content: "\e601";
+}
+
+.ico-notification:before {
+    content: "\e607";
+}
+
+.ico-report:before {
     content: "\e605";
+}
+
+.ico-comment:before {
+    content: "\e620";
+}
+
+.ico-goline:before {
+    content: "\e61e";
+}
+
+.ico-info:before {
+    content: "\e61d";
+}
+
+.ico-signup:before {
+    content: "\e606";
+}
+
+.ico-signout:before {
+    content: "\e618";
+}
+
+.ico-redo:before {
+    content: "\e615";
+}
+
+.ico-undo:before {
+    content: "\e60e";
+}
+
+.ico-about:before {
+    content: "\e60d";
+}
+
+.ico-import:before {
+    content: "\f0ee";
+}
+
+.ico-export:before {
+    content: "\f0ed";
+}
+
+.ico-refresh:before {
+    content: "\f021";
+}
+
+.ico-remove:before {
+    content: "\e60b";
 }
 
 .ico-save:before {
@@ -34,41 +161,43 @@
 }
 
 .ico-max:before {
-    content: "\f096";
+    content: "\e609";
 }
 
 .ico-format:before {
-    content: "\e60b";
+    content: "\e612";
 }
 
 .ico-buildrun:before {
-    content: "\e607";
-}
-
-.ico-stop:before {
-    content: "\e608";
-}
-
-.ico-restore:before {
     content: "\e60c";
 }
 
+.ico-stop:before {
+    content: "\e60f";
+}
+
+.ico-restore:before {
+    content: "\e613";
+}
+
+.toolbars .ico-restore:before {
+    content: "\e60a";
+}
+
 .ico-min:before {
-    content: "\e60d";
+    content: "\e614";
     position: absolute;
     right: 5px;
 }
 
 .ico-close:before {
-    content: "\e60a";
+    content: "\e611";
 }
 /* end ico */
 
 /* start frame */
 .frame {
     position: absolute;
-    border: 1px solid #5F5F5F;
-    background-color: #F8F8F8;
     width: 320px;
     z-index: 21;
     display: none;
@@ -80,17 +209,9 @@
     cursor: pointer;
 }
 
-.frame li.disabled {
-    color: #999;
-}
-
-.frame li:hover {
-    background-color: #3875D7;
-    color: #FFF;
-}
-
-.frame li.disabled:hover {
-    background-color: #F8F8F8;
+.frame li.disabled,
+.frame li.disabled .font-ico,   
+.frame li.disabled:hover .font-ico {
     color: #999;
 }
 
@@ -104,64 +225,94 @@
     color: #FFF;
 }
 
-.frame .hr {
-    background-color: #bdbdbd;
-    height: 1px;
-    margin: 0 1px;
+.frame .space {
+    display: inline-block;
+    width: 20px;
+    height: 15px;
+}
+
+.frame .font-ico {
+    margin-right: 5px;
+    width: 15px;
+    display: inline-block;
+    text-align: center;
 }
 /* end frame */
 
 /* start tabs */
 .tabs {
-    height: 20px;
+    height: 21px;
     overflow: hidden;
     width: 100%;
-    background-color: #E6E6E6;
-    border-top: 1px solid #A4A4A4;
-    border-bottom: 1px solid #9D9D9D;
 }
 
 .tabs > div {
     float: left;
-    line-height: 18px;
-    height: 18px;
+    line-height: 20px;
+    height: 20px;
     padding: 0 5px;
     cursor: pointer;
-    background-color: #DDD;
-    color: #8B8B8B;
-    border-right: 1px solid #ADADAD;
+
 }
 
-.tabs > div.current {
-    background-color: #9F9F9F;
-    color: #FFF;
+.tabs > div > span.changed {
+    font-weight: bold;
 }
 /* end tabs */
 
-/* start framework */
-.content {
-    position: relative;
-    overflow: hidden;
-}
-/* end framework */
-
 /* start menu */
-.menu {
-    background-color: #F0F0F0;
-    height: 24px;
-}
-
 .menu > ul > li {
     float: left;
 }
 
 .menu > ul > li > span {
-    color: #000;
     font-size: 12px;
-    line-height: 24px;
-    padding: 5px;
-    text-decoration: none;
+    line-height: 21px;
     cursor: pointer;
+    padding: 4px 7px;
+}
+
+.menu .split {
+    float: left;
+    border-left: 1px solid #919191;
+    height: 21px;
+    margin: 0 5px 0 0px
+}
+
+.menu img.gravatar {
+    float: left;
+    margin: 2px 8px;
+    height: 17px;
+    width: 17px;
+}
+
+#buildRun {
+    color: #6DB14C;
+    font-size: 19px;
+}
+
+#buildRun.ico-stop {
+    color: #9d0000;
+    font-size: 16px;
+}
+
+.share-panel {
+    position: absolute;
+    z-index: 20;
+    width: 226px;
+    padding: 5px 0;
+    right: 0px;
+}
+
+.share-panel .font-ico {
+    font-size: 20px;
+    transition:all .2s ease-out 0s;
+    margin: 0 5px;
+    width: 24px;
+}
+
+.share-panel .font-ico:hover {
+    transform:rotate(360deg);
 }
 /* end menu */
 
@@ -175,24 +326,14 @@
     overflow: hidden;
 }
 
-.edit-panel .tabs > div {
-    background-color: #d1d1d1;
-    border-right-color: #9b9b9b;
-    color: #333;
-    cursor: auto;
-}
-
-.edit-panel .tabs > div.current {
-    background-color: #F7F7F7;
-}
-
 .toolbars {
     position: absolute;
     right: 5px;
     top: 1px;
 }
 
-.edit-panel .tabs .ico {
+.edit-panel .tabs .ico,
+#dialogGoFilePrompt .ico {
     background-image: url("../images/ico-file.png");
     float: left;
     height: 16px;
@@ -200,7 +341,7 @@
     width: 16px;
 }
 
-/* 统一为 static/js/lib/codemirror-4.5/addon/hint/show-hint.css 中的.CodeMirror-hints */
+/* 统一为 static/js/lib/codemirror-x.x/addon/hint/show-hint.css 中的.CodeMirror-hints */
 .edit-exprinfo {
     position: absolute;
     z-index: 10;
@@ -218,7 +359,6 @@
 
     background: white;
     font-size: 90%;
-    font-family: Consolas, Courier New, monospace;
 
     max-height: 20em;
     overflow-y: auto;
@@ -226,7 +366,6 @@
 
 .CodeMirror,
 .CodeMirror-hints {
-    font-family: Consolas, Courier New, monospace;
 }
 
 .CodeMirror-focused .cm-matchhighlight {
@@ -243,6 +382,10 @@
 .CodeMirror-hint:hover {
     background: #08f;
     color: white;
+}
+
+.CodeMirror div.CodeMirror-cursor {
+    border-left: 2px solid #333;
 }
 /* end editor */
 
@@ -264,6 +407,7 @@
     top: 0;
     width: 100%;
     z-index: 11;
+    border-top-width: 0 !important;
 }
 
 .bottom-window-group > div > div {
@@ -271,6 +415,7 @@
 }
 
 .bottom-window-group .output {
+    font-family: Consolas, Courier New, monospace;
     padding: 0 5px;
     line-height: 16px;
     font-size: 12px;
@@ -278,24 +423,38 @@
 
 .bottom-window-group .output pre {
     margin: 0;
+    font-family: Consolas, 'Courier New', monospace
 }
 
 .bottom-window-group .output .start-build,
+.bottom-window-group .output .start-test,
 .bottom-window-group .output .start-install,
 .bottom-window-group .output .start-get {
     color: #999;
 }
 
-.bottom-window-group .output .build-succ, 
+.bottom-window-group .output .build-succ,
+.bottom-window-group .output .test-succ,
 .bottom-window-group .output .install-succ,
 .bottom-window-group .output .get-succ {
     color: rgb(0,153,0);
 }
 
-.bottom-window-group .output .build-failed, 
-.bottom-window-group .output .install-failed, 
-.bottom-window-group .output .get-failed {
-    color: red;
+.bottom-window-group .output .build-error,
+.bottom-window-group .output .test-error,
+.bottom-window-group .output .install-error, 
+.bottom-window-group .output .get-error {
+    color: #9d0000;
+}
+
+.bottom-window-group .output .stderr {
+    color: gray;
+    font-style: italic;
+}
+
+.bottom-window-group .output .path {
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 .bottom-window-group table {
@@ -303,8 +462,9 @@
 }
 
 .bottom-window-group td {
-    border-bottom: 1px solid #DDD;
-    line-height: 20px;
+    border-bottom: 1px solid #919191;
+    font-size: 12px;
+    line-height: 19px;
 }
 
 .bottom-window-group .notification .type,
@@ -312,40 +472,19 @@
     width: 50px;
     padding: 0 5px;
 }
-
-.bottom-window-group .search li {
-    cursor: pointer;
-    line-height: 20px;
-    padding: 0 3px;
-    word-wrap: normal;
-    word-break: normal;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.bottom-window-group .search li.selected {
-    background-color: #3875d7;
-    color: #FFF;
-}
-
-.bottom-window-group .search .path {
-    color: #999;
-    font-size: 12px;
-}
-
-.bottom-window-group .search li.selected .path {
-    color: #FFF;
-}
 /* end bottom-window-group */
 
 /* start footer */
 .footer {
-    border-top: 1px solid #919191;
-    background-color: #F0F0F0;
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
+    text-shadow: 0px 1px 0px rgba(0, 0, 0, 0.57);
     padding-left: 5px;
     height: 19px;
     line-height: 18px;
+    position: fixed;
+    bottom: 0;
+    z-index: 11;
+    width: 100%;
 }
 
 .footer .cursor {
@@ -356,7 +495,7 @@
     float: right;
     display: none;
     cursor: pointer;
-    background-color: red;
+    background-color: #9d0000;
     color: #FFF;
     margin: 1px 5px;
     padding: 0 2px;

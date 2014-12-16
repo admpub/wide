@@ -1,3 +1,0 @@
-go install
-wide
-pause

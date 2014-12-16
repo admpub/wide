@@ -1,35 +1,63 @@
-// 国际化操作.
+// Copyright (c) 2014, B3log
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package i18n includes internationalization related manipulations.
 package i18n
 
 import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"sort"
+	"strings"
 
-	"github.com/golang/glog"
+	"github.com/b3log/wide/log"
 )
 
+// Logger.
+var logger = log.NewLogger(os.Stdout)
+
+// Locale.
 type locale struct {
 	Name     string
 	Langs    map[string]interface{}
 	TimeZone string
 }
 
-// 所有的 locales.
+// All locales.
 var Locales = map[string]locale{}
 
-// 加载国际化配置.
+// Load loads i18n message configurations.
 func Load() {
-	// TODO: 自动加载所有语言配置
+	f, _ := os.Open("i18n")
+	names, _ := f.Readdirnames(-1)
+	f.Close()
 
-	load("zh_CN")
-	load("en_US")
+	for _, name := range names {
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+
+		loc := name[:strings.LastIndex(name, ".")]
+		load(loc)
+	}
 }
 
 func load(localeStr string) {
 	bytes, err := ioutil.ReadFile("i18n/" + localeStr + ".json")
 	if nil != err {
-		glog.Error(err)
+		logger.Error(err)
 
 		os.Exit(-1)
 	}
@@ -38,22 +66,33 @@ func load(localeStr string) {
 
 	err = json.Unmarshal(bytes, &l.Langs)
 	if nil != err {
-		glog.Error(err)
+		logger.Error(err)
 
 		os.Exit(-1)
 	}
 
 	Locales[localeStr] = l
-
-	glog.V(5).Infof("Loaded [%s] locale configuration", localeStr)
 }
 
-// 获取语言配置项.
+// Get gets message with the specified locale and key.
 func Get(locale, key string) interface{} {
 	return Locales[locale].Langs[key]
 }
 
-// 获取语言配置.
+// GetAll gets all messages with the specified locale.
 func GetAll(locale string) map[string]interface{} {
 	return Locales[locale].Langs
+}
+
+// GetLocalesNames gets names of all locales. Returns ["zh_CN", "en_US"] for example.
+func GetLocalesNames() []string {
+	ret := []string{}
+
+	for name := range Locales {
+		ret = append(ret, name)
+	}
+
+	sort.Strings(ret)
+
+	return ret
 }

@@ -1,23 +1,25 @@
-# Wide [![Build Status](https://drone.io/github.com/b3log/wide/status.png)](https://drone.io/github.com/b3log/wide/latest)
+# Wide [![Build Status](https://img.shields.io/travis/b3log/wide.svg)](https://travis-ci.org/b3log/wide) [![Apache License](http://img.shields.io/badge/license-ALv2-orange.svg)](http://www.apache.org/licenses/LICENSE-2.0) [![API Documentation](http://img.shields.io/badge/api-Godoc-blue.svg)](http://godoc.org/github.com/b3log/wide)  [![Download](http://img.shields.io/badge/download-1K-red.svg)](http://pan.baidu.com/s/1dD3XwOT)
+
+_Have a [**try**](http://wide.b3log.org/signup) first, and then help us to make it [happen](http://igg.me/at/widehub)!_
 
 ## Intro
 
-A <b>W</b>eb <b>IDE</b> for Teams using Golang.
+A <b>W</b>eb-based <b>IDE</b> for Teams using Golang.
 
-<img src="https://cloud.githubusercontent.com/assets/873584/4606377/d0ca3c2a-521b-11e4-912c-d955ab05850b.png" width="100%" />
+![Hello, 世界](https://cloud.githubusercontent.com/assets/873584/4606377/d0ca3c2a-521b-11e4-912c-d955ab05850b.png)
 
 ## Motivation
 
 * **Team** IDE:
-  * Safe and reliable: the project source code stored on the server in real time, the developer's machine crashes without losing any source code 
-  * Unified environment: server unified development environment configuration, the developer machine without any additional configuration 
-  * Out of the box: 5 minutes to setup a server then open browser to develop, debug
-  * Version Control: each developer has its own source code repository, easy sync with the trunk 
-* **Web based** IDE:
+  * _Safe and reliable_: the project source code stored on the server in real time, the developer's machine crashes without losing any source code 
+  * _Unified environment_: server unified development environment configuration, the developer machine without any additional configuration 
+  * _Out of the box_: 5 minutes to setup a server then open browser to develop, debug
+  * _Version Control_: each developer has its own source code repository, easy sync with the trunk 
+* **Web-based** IDE:
   * Developer needs a browser only
   * Cross-platform, even on mobile devices
-  * Easy for extensions 
-  * Easy integration with other systems
+  * Easy to extend
+  * Easy to integrate with other systems
   * For the geeks
 * A try for commercial-open source: versions customized for enterprises, close to their development work flows respectively
 * Currently more popular Go IDE has some defects or regrets: 
@@ -29,16 +31,34 @@ A <b>W</b>eb <b>IDE</b> for Teams using Golang.
 
 ## Features
 
-* Code Highlight, Folding: Go/HTML/JavaScript/Markdown etc.
-* Autocomplete: Go/HTML etc.
-* Format: Go/HTML/JSON etc.
-* Run & Debug: run/debug multiple processes at the same time
-* Multiplayer: a real team development experience
-* Navigation, Jump to declaration, Find usages, File search etc.
-* Shell: run command on the server
-* Git integration: git command on the web
-* Web development: Frontend devlopment (HTML/JS/CSS) all in one
-* Go tool: go get/install/fmt etc.
+* [X] Code Highlight, Folding: Go/HTML/JavaScript/Markdown etc.
+* [X] Autocomplete: Go/HTML etc.
+* [X] Format: Go/HTML/JSON etc.
+* [X] Build & Run
+* [X] Multiplayer: a real team development experience
+* [X] Navigation, Jump to declaration, Find usages, File search etc.
+* [X] Shell: run command on the server
+* [X] Web development: Frontend devlopment (HTML/JS/CSS) all in one
+* [X] Go tool: go get/install/fmt etc.
+* [X] File Import & Export
+* [X] Themes
+* [ ] Debug
+* [ ] Git integration: git command on the web
+
+## Screenshots
+
+* **Overview**
+  ![Overview](https://cloud.githubusercontent.com/assets/873584/5450620/1d51831e-8543-11e4-930b-670871902425.png)
+* **Goto File**
+  ![Goto File](https://cloud.githubusercontent.com/assets/873584/5450616/1d495da6-8543-11e4-9285-f9d9c60779ac.png)
+* **Autocomplete**
+  ![Autocomplete](https://cloud.githubusercontent.com/assets/873584/5450619/1d4d5712-8543-11e4-8fe4-35dbc8348a6e.png)
+* **Theme**
+  ![4](https://cloud.githubusercontent.com/assets/873584/5450617/1d4c0826-8543-11e4-8b86-f79a4e41550a.png)
+* **Show Expression Info**
+  ![Show Expression Info](https://cloud.githubusercontent.com/assets/873584/5450618/1d4cd9f4-8543-11e4-950f-121bd3ff4a39.png)
+* **Build Error Info**
+  ![Build Error Info](https://cloud.githubusercontent.com/assets/873584/5450632/3e51cccc-8543-11e4-8ca8-8d2427aa16b8.png)
 
 ## Architecture 
 
@@ -64,7 +84,7 @@ Flow:
 ![Code Assist](https://cloud.githubusercontent.com/assets/873584/4399135/3b80c21c-4463-11e4-8e94-7f7e8d12a4df.png)
 
  * Autocompletion
- * Find Usages
+ * Find Usages/Jump To Declaration/etc.
 
 Flow: 
  1. Browser sends code assist request
@@ -78,26 +98,31 @@ Flow:
 * [用户指南](http://88250.gitbooks.io/wide-user-guide)
 * [开发指南](http://88250.gitbooks.io/wide-dev-guide)
 
-## Demos
+## Setup
 
-* 20141024-1.0.0, png ![](http://b3log.org/wide/demo/20141024.png)
+### Download Binary
 
-### Olds
-* [20140927, png](http://b3log.org/wide/demo/20140927.png)
-* [20140913, png](http://b3log.org/wide/demo/20140913.png)
-* [20140910, png](http://b3log.org/wide/demo/20140910.png)
-* [20140823, swf](http://b3log.org/wide/demo/20140823.html)
+We have provided OS-specific executable binary as follows: 
 
-## Setup from sources
+* linux-amd64/386
+* windows-amd64/386
+* darwin-amd64/386
 
-1. Downloads source
-2. Gets dependencies with 
-   * `go get -u`
-   * `go get -u github.com/88250/ide_stub`
-   * `go get -u github.com/nsf/gocode`
-3. Compiles wide with `go build` 
-4. Configures `conf/wide.json`
-5. Runs the executable `wide` or `wide.exe`
+Download [HERE](http://pan.baidu.com/s/1dD3XwOT)!
+
+### Build Wide for yourself
+
+1. [Download](https://github.com/b3log/wide/archive/master.zip) source or by `git clone`
+2. Get dependencies with 
+   * `go get`
+   * `go get github.com/88250/ide_stub`
+   * `go get github.com/nsf/gocode`
+3. Compile wide with `go build` 
+
+### Docker
+
+1. Get image: `sudo docker pull 88250/wide:latest`
+2. Run: `sudo docker run -u wide -p {ip}:{port}:7070 88250/wide:latest ./wide -docker=true -channel=ws://{ip}:{port}`
 
 ## Known Issues
 
@@ -117,8 +142,9 @@ Licensed under the [Apache License 2.0](https://github.com/b3log/wide/blob/maste
 * [LiteIDE](https://github.com/visualfc/liteide)
 * [gocode](https://github.com/nsf/gocode)
 * [Gorilla](https://github.com/gorilla)
+* [GoBuild](http://gobuild.io)
+* [Docker](https://docker.com)
 
 ----
 
 <img src="https://cloud.githubusercontent.com/assets/873584/4606328/4e848b96-5219-11e4-8db1-fa12774b57b4.png" width="256px" />
-</center>

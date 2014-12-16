@@ -1,30 +1,48 @@
-// 通知.
+// Copyright (c) 2014, B3log
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package notification includes notification related manipulations.
 package notification
 
 import (
 	"net/http"
-
+	"os"
+	"strconv"
 	"time"
 
-	"strconv"
 	"github.com/b3log/wide/conf"
 	"github.com/b3log/wide/event"
 	"github.com/b3log/wide/i18n"
+	"github.com/b3log/wide/log"
 	"github.com/b3log/wide/session"
 	"github.com/b3log/wide/util"
-	"github.com/golang/glog"
 	"github.com/gorilla/websocket"
 )
 
 const (
-	Error = "ERROR" // 通知.严重程度：ERROR
-	Warn  = "WARN"  // 通知.严重程度：WARN
-	Info  = "INFO"  // 通知.严重程度：INFO
+	error = "ERROR" // notification.severity: ERROR
+	warn  = "WARN"  // notification.severity: WARN
+	info  = "INFO"  // notification.severity: INFO
 
-	Setup = "Setup" // 通知.类型：安装
+	setup  = "Setup"  // notification.type: setup
+	server = "Server" // notification.type: server
 )
 
-// 通知结构.
+// Logger.
+var logger = log.NewLogger(os.Stdout)
+
+// Notification represents a notification.
 type Notification struct {
 	event    *event.Event
 	Type     string `json:"type"`
@@ -32,25 +50,15 @@ type Notification struct {
 	Message  string `json:"message"`
 }
 
-// 用户事件处理：将事件转为通知，并通过通知通道推送给前端.
-//
-// 当用户事件队列接收到事件时将会调用该函数进行处理.
+// event2Notification processes user event by converting the specified event to a notification, and then push it to front
+// browser with notification channel.
 func event2Notification(e *event.Event) {
 	if nil == session.NotificationWS[e.Sid] {
 		return
 	}
 
 	wsChannel := session.NotificationWS[e.Sid]
-
-	var notification Notification
-
-	switch e.Code {
-	case event.EvtCodeGocodeNotFound:
-		notification = Notification{event: e, Type: Setup, Severity: Error}
-	case event.EvtCodeIDEStubNotFound:
-		notification = Notification{event: e, Type: Setup, Severity: Error}
-	default:
-		glog.Warningf("Can't handle event[code=%d]", e.Code)
+	if nil == wsChannel {
 		return
 	}
 
@@ -58,49 +66,58 @@ func event2Notification(e *event.Event) {
 	username := httpSession.Values["username"].(string)
 	locale := conf.Wide.GetUser(username).Locale
 
-	// 消息国际化处理
-	notification.Message = i18n.Get(locale, "notification_"+strconv.Itoa(e.Code)).(string)
+	var notification *Notification
 
-	wsChannel.Conn.WriteJSON(&notification)
+	switch e.Code {
+	case event.EvtCodeGocodeNotFound:
+		fallthrough
+	case event.EvtCodeIDEStubNotFound:
+		notification = &Notification{event: e, Type: setup, Severity: error,
+			Message: i18n.Get(locale, "notification_"+strconv.Itoa(e.Code)).(string)}
+	case event.EvtCodeServerInternalError:
+		notification = &Notification{event: e, Type: server, Severity: error,
+			Message: i18n.Get(locale, "notification_"+strconv.Itoa(e.Code)).(string) + " [" + e.Data.(string) + "]"}
+	default:
+		logger.Warnf("Can't handle event[code=%d]", e.Code)
 
-	// 更新通道最近使用时间
-	wsChannel.Time = time.Now()
+		return
+	}
+
+	wsChannel.WriteJSON(notification)
+
+	wsChannel.Refresh()
 }
 
-// 建立通知通道.
+// WSHandler handles request of creating notification channel.
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	sid := r.URL.Query()["sid"][0]
 
 	wSession := session.WideSessions.Get(sid)
-	if nil == wSession {
-		glog.Errorf("Session [%s] not found", sid)
 
+	if nil == wSession {
 		return
 	}
 
 	conn, _ := websocket.Upgrade(w, r, nil, 1024, 1024)
 	wsChan := util.WSChannel{Sid: sid, Conn: conn, Request: r, Time: time.Now()}
 
+	ret := map[string]interface{}{"notification": "Notification initialized", "cmd": "init-notification"}
+	err := wsChan.WriteJSON(&ret)
+	if nil != err {
+		return
+	}
+
 	session.NotificationWS[sid] = &wsChan
 
-	glog.V(4).Infof("Open a new [Notification] with session [%s], %d", sid, len(session.NotificationWS))
+	logger.Tracef("Open a new [Notification] with session [%s], %d", sid, len(session.NotificationWS))
 
-	// 添加用户事件处理器
+	// add user event handler
 	wSession.EventQueue.AddHandler(event.HandleFunc(event2Notification))
 
 	input := map[string]interface{}{}
 
 	for {
-		if err := wsChan.Conn.ReadJSON(&input); err != nil {
-			if err.Error() == "EOF" {
-				return
-			}
-
-			if err.Error() == "unexpected EOF" {
-				return
-			}
-
-			glog.Error("Notification WS ERROR: " + err.Error())
+		if err := wsChan.ReadJSON(&input); err != nil {
 			return
 		}
 	}

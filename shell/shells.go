@@ -1,45 +1,66 @@
-// Shell.
+// Copyright (c) 2014, B3log
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package shell include shell related mainipulations.
 package shell
 
 import (
 	"html/template"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/b3log/wide/conf"
 	"github.com/b3log/wide/i18n"
+	"github.com/b3log/wide/log"
 	"github.com/b3log/wide/session"
 	"github.com/b3log/wide/util"
-	"github.com/golang/glog"
 	"github.com/gorilla/websocket"
 )
 
-// Shell 通道.
+// Shell channel.
 //
 // <sid, *util.WSChannel>>
 var ShellWS = map[string]*util.WSChannel{}
 
-// Shell 首页.
+// Logger.
+var logger = log.NewLogger(os.Stdout)
+
+// IndexHandler handles request of Shell index.
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
-	i18n.Load()
-
 	httpSession, _ := session.HTTPSession.Get(r, "wide-session")
-
 	if httpSession.IsNew {
-		http.Redirect(w, r, "/login", http.StatusFound)
+		http.Redirect(w, r, conf.Wide.Context+"login", http.StatusFound)
 
 		return
 	}
 
 	httpSession.Options.MaxAge = conf.Wide.HTTPSessionMaxAge
+	if "" != conf.Wide.Context {
+		httpSession.Options.Path = conf.Wide.Context
+	}
 	httpSession.Save(r, w)
 
-	// 创建一个 Wide 会话
-	wideSession := session.WideSessions.New(httpSession)
+	// create a wide session
+	rand.Seed(time.Now().UnixNano())
+	sid := strconv.Itoa(rand.Int())
+	wideSession := session.WideSessions.New(httpSession, sid)
 
 	username := httpSession.Values["username"].(string)
 	locale := conf.Wide.GetUser(username).Locale
@@ -49,12 +70,12 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 	wideSessions := session.WideSessions.GetByUsername(username)
 
-	glog.V(3).Infof("User [%s] has [%d] sessions", username, len(wideSessions))
+	logger.Tracef("User [%s] has [%d] sessions", username, len(wideSessions))
 
 	t, err := template.ParseFiles("views/shell.html")
 
 	if nil != err {
-		glog.Error(err)
+		logger.Error(err)
 		http.Error(w, err.Error(), 500)
 
 		return
@@ -63,9 +84,14 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, model)
 }
 
-// 建立 Shell 通道.
+// WSHandler handles request of creating Shell channel.
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	httpSession, _ := session.HTTPSession.Get(r, "wide-session")
+	if httpSession.IsNew {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+
+		return
+	}
 	username := httpSession.Values["username"].(string)
 
 	sid := r.URL.Query()["sid"][0]
@@ -73,26 +99,22 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 	conn, _ := websocket.Upgrade(w, r, nil, 1024, 1024)
 	wsChan := util.WSChannel{Sid: sid, Conn: conn, Request: r, Time: time.Now()}
 
+	ret := map[string]interface{}{"output": "Shell initialized", "cmd": "init-shell"}
+	err := wsChan.WriteJSON(&ret)
+	if nil != err {
+		return
+	}
+
 	ShellWS[sid] = &wsChan
 
-	ret := map[string]interface{}{"output": "Shell initialized", "cmd": "init-shell"}
-	wsChan.Conn.WriteJSON(&ret)
-
-	glog.V(4).Infof("Open a new [Shell] with session [%s], %d", sid, len(ShellWS))
+	logger.Debugf("Open a new [Shell] with session [%s], %d", sid, len(ShellWS))
 
 	input := map[string]interface{}{}
 
 	for {
-		if err := wsChan.Conn.ReadJSON(&input); err != nil {
-			if err.Error() == "EOF" {
-				return
-			}
+		if err := wsChan.ReadJSON(&input); err != nil {
+			logger.Error("Shell WS ERROR: " + err.Error())
 
-			if err.Error() == "unexpected EOF" {
-				return
-			}
-
-			glog.Error("Shell WS ERROR: " + err.Error())
 			return
 		}
 
@@ -119,17 +141,15 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 
 		ret = map[string]interface{}{"output": output, "cmd": "shell-output"}
 
-		if err := wsChan.Conn.WriteJSON(&ret); err != nil {
-			glog.Error("Shell WS ERROR: " + err.Error())
+		if err := wsChan.WriteJSON(&ret); err != nil {
+			logger.Error("Shell WS ERROR: " + err.Error())
 			return
 		}
 
-		// 更新通道最近使用时间
-		wsChan.Time = time.Now()
+		wsChan.Refresh()
 	}
 }
 
-// 以管道方式执行多个命令.
 func pipeCommands(username string, commands ...*exec.Cmd) string {
 	for i, command := range commands[:len(commands)-1] {
 		setCmdEnv(command, username)
@@ -149,7 +169,7 @@ func pipeCommands(username string, commands ...*exec.Cmd) string {
 
 	out, err := last.CombinedOutput()
 
-	// 结束进程，释放资源
+	// release resources
 	for _, command := range commands[:len(commands)-1] {
 		command.Wait()
 	}

@@ -1,9 +1,23 @@
+/* 
+ * Copyright (c) 2014, B3log
+ *  
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *  
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *  
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var wide = {
     curNode: undefined,
     curEditor: undefined,
-    curProcessId: undefined, // 当前正在运行的进程 id（pid）
-    bottomWindowTab: undefined,
-    searchTab: undefined,
+    curProcessId: undefined, // curent running process id (pid)
     _initDialog: function () {
         $(".dialog-prompt > input").keyup(function (event) {
             var $okBtn = $(this).closest(".dialog-main").find(".dialog-footer > button:eq(0)");
@@ -17,7 +31,6 @@ var wide = {
                 $okBtn.prop("disabled", false);
             }
         });
-
 
         $("#dialogAlert").dialog({
             "modal": true,
@@ -47,18 +60,22 @@ var wide = {
 
                 $.ajax({
                     type: 'POST',
-                    url: '/file/remove',
+                    url: config.context + '/file/remove',
                     data: JSON.stringify(request),
                     dataType: "json",
                     success: function (data) {
                         if (!data.succ) {
+                            $("#dialogRemoveConfirm").dialog("close");
+                            bottomGroup.tabs.setCurrent("notification");
+                            windows.flowBottom();
+                            $(".bottom-window-group .notification").focus();
                             return false;
                         }
 
                         $("#dialogRemoveConfirm").dialog("close");
                         tree.fileTree.removeNode(wide.curNode);
 
-                        if ("ico-ztree-dir " !== wide.curNode.iconSkin) {
+                        if (!tree.isDir()) {
                             // 是文件的话，查看 editor 中是否被打开，如打开则移除
                             for (var i = 0, ii = editors.data.length; i < ii; i++) {
                                 if (editors.data[i].id === wide.curNode.tId) {
@@ -68,7 +85,7 @@ var wide = {
                             }
                         } else {
                             for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                                if (tree._isParents(editors.data[i].id, wide.curNode.tId)) {
+                                if (tree.isParents(editors.data[i].id, wide.curNode.tId)) {
                                     $(".edit-panel .tabs > div[data-index=" + editors.data[i].id + "]").find(".ico-close").click();
                                     i--;
                                     ii--;
@@ -100,54 +117,28 @@ var wide = {
 
                 $.ajax({
                     type: 'POST',
-                    url: '/file/new',
+                    url: config.context + '/file/new',
                     data: JSON.stringify(request),
                     dataType: "json",
                     success: function (data) {
                         if (!data.succ) {
+                            $("#dialogNewFilePrompt").dialog("close");
+                            bottomGroup.tabs.setCurrent("notification");
+                            windows.flowBottom();
+                            $(".bottom-window-group .notification").focus();
                             return false;
                         }
+
                         $("#dialogNewFilePrompt").dialog("close");
-                        var suffix = name.split(".")[1],
-                                iconSkin = "ico-ztree-other ";
-                        switch (suffix) {
-                            case "html", "htm":
-                                iconSkin = "ico-ztree-html ";
-                                break;
-                            case "go":
-                                iconSkin = "ico-ztree-go ";
-                                break;
-                            case "css":
-                                iconSkin = "ico-ztree-css ";
-                                break;
-                            case "txt":
-                                iconSkin = "ico-ztree-text ";
-                                break;
-                            case "sql":
-                                iconSkin = "ico-ztree-sql ";
-                                break;
-                            case "properties":
-                                iconSkin = "ico-ztree-pro ";
-                                break;
-                            case "md":
-                                iconSkin = "ico-ztree-md ";
-                                break;
-                            case "js", "json":
-                                iconSkin = "ico-ztree-js ";
-                                break;
-                            case "xml":
-                                iconSkin = "ico-ztree-xml ";
-                                break;
-                            case "jpg", "jpeg", "bmp", "gif", "png", "svg", "ico":
-                                iconSkin = "ico-ztree-img ";
-                                break;
-                        }
+                        var iconSkin = wide.getClassBySuffix(name.split(".")[1]);
 
                         tree.fileTree.addNodes(wide.curNode, [{
                                 "name": name,
                                 "iconSkin": iconSkin,
                                 "path": request.path,
-                                "mode": data.mode
+                                "mode": data.mode,
+                                "removable": true,
+                                "creatable": true
                             }]);
                     }
                 });
@@ -174,11 +165,15 @@ var wide = {
 
                 $.ajax({
                     type: 'POST',
-                    url: '/file/new',
+                    url: config.context + '/file/new',
                     data: JSON.stringify(request),
                     dataType: "json",
                     success: function (data) {
                         if (!data.succ) {
+                            $("#dialogNewDirPrompt").dialog("close");
+                            bottomGroup.tabs.setCurrent("notification");
+                            windows.flowBottom();
+                            $(".bottom-window-group .notification").focus();
                             return false;
                         }
 
@@ -187,10 +182,101 @@ var wide = {
                         tree.fileTree.addNodes(wide.curNode, [{
                                 "name": name,
                                 "iconSkin": "ico-ztree-dir ",
-                                "path": request.path
+                                "path": request.path,
+                                "removable": true,
+                                "creatable": true
                             }]);
                     }
                 });
+            }
+        });
+
+        $("#dialogGoFilePrompt").dialog({
+            "modal": true,
+            "height": 320,
+            "width": 660,
+            "title": config.label.goto_file,
+            "okText": config.label.go,
+            "cancelText": config.label.cancel,
+            "afterInit": function () {
+                $("#dialogGoFilePrompt").on("dblclick", "li", function () {
+                    var tId = tree.getTIdByPath($(this).find(".ft-small").text());
+                    tree.openFile(tree.fileTree.getNodeByTId(tId));
+                    tree.fileTree.selectNode(wide.curNode);
+                    $("#dialogGoFilePrompt").dialog("close");
+                     wide.curEditor.focus();
+                });
+
+                $("#dialogGoFilePrompt").on("click", "li", function () {
+                    var $list = $("#dialogGoFilePrompt > .list");
+                    $list.find("li").removeClass("selected");
+                    $list.data("index", $(this).data("index"));
+                    $(this).addClass("selected");
+                });
+
+                hotkeys.bindList($("#dialogGoFilePrompt > input"), $("#dialogGoFilePrompt > .list"), function ($selected) {
+                    var tId = tree.getTIdByPath($selected.find(".ft-small").text());
+                    tree.openFile(tree.fileTree.getNodeByTId(tId));
+                    tree.fileTree.selectNode(wide.curNode);
+                    $("#dialogGoFilePrompt").dialog("close");
+                    wide.curEditor.focus();
+                });
+
+                $("#dialogGoFilePrompt > input").bind("input", function () {
+                    var name = $("#dialogGoFilePrompt > input").val();
+
+                    var request = newWideRequest();
+                    request.path = '';
+                    request.name = '*' + name + '*';
+                    if (wide.curNode) {
+                        request.path = wide.curNode.path;
+                    }
+
+                    $.ajax({
+                        type: 'POST',
+                        url: config.context + '/file/find/name',
+                        data: JSON.stringify(request),
+                        dataType: "json",
+                        success: function (data) {
+                            if (!data.succ) {
+                                return;
+                            }
+
+                            var goFileHTML = '';
+                            for (var i = 0, max = data.founds.length; i < max; i++) {
+                                var path = data.founds[i].path,
+                                        name = path.substr(path.lastIndexOf(config.pathSeparator) + 1),
+                                        icoSkin = wide.getClassBySuffix(name.split(".")[1]);
+                                if (i === 0) {
+                                    goFileHTML += '<li data-index="' + i + '" class="selected" title="'
+                                            + path + '"><span class="'
+                                            + icoSkin + 'ico"></span>'
+                                            + name + '&nbsp;&nbsp;&nbsp;&nbsp;<span class="ft-small">'
+                                            + path + '</span></li>';
+                                } else {
+                                    goFileHTML += '<li data-index="' + i + '" title="'
+                                            + path + '"><span class="' + icoSkin + 'ico"></span>'
+                                            + name + '&nbsp;&nbsp;&nbsp;&nbsp;<span class="ft-small">'
+                                            + path + '</span></li>';
+                                }
+                            }
+
+                            $("#dialogGoFilePrompt > ul").html(goFileHTML);
+                        }
+                    });
+                });
+            },
+            "afterOpen": function () {
+                $("#dialogGoFilePrompt > input").val('').focus();
+                $("#dialogGoFilePrompt").closest(".dialog-main").find(".dialog-footer > button:eq(0)").prop("disabled", true);
+                $("#dialogGoFilePrompt .list").html('').data("index", 0);
+            },
+            "ok": function () {
+                var tId = tree.getTIdByPath($("#dialogGoFilePrompt .selected .ft-small").text());
+                tree.openFile(tree.fileTree.getNodeByTId(tId));
+                tree.fileTree.selectNode(wide.curNode);
+                $("#dialogGoFilePrompt").dialog("close");
+                wide.curEditor.focus();
             }
         });
 
@@ -206,113 +292,38 @@ var wide = {
                 $("#dialogGoLinePrompt").closest(".dialog-main").find(".dialog-footer > button:eq(0)").prop("disabled", true);
             },
             "ok": function () {
-                var line = parseInt($("#dialogGoLinePrompt > input").val());
+                var line = parseInt($("#dialogGoLinePrompt > input").val()) - 1;
                 $("#dialogGoLinePrompt").dialog("close");
-                wide.curEditor.setCursor(CodeMirror.Pos(line - 1, 0));
-                wide.curEditor.focus();
+
+                var editor = wide.curEditor;
+                var cursor = editor.getCursor();
+
+                editor.setCursor(CodeMirror.Pos(line, cursor.ch));
+
+                var half = Math.floor(editor.getScrollInfo().clientHeight / editor.defaultTextHeight() / 2);
+                var cursorCoords = editor.cursorCoords({line: line - half, ch: cursor.ch}, "local");
+                editor.scrollTo(0, cursorCoords.top);
+
+                editor.focus();
             }
-        });
-
-        $("#dialogSearchForm > input:eq(0)").keyup(function (event) {
-            var $okBtn = $(this).closest(".dialog-main").find(".dialog-footer > button:eq(0)");
-            if (event.which === 13 && !$okBtn.prop("disabled")) {
-                $okBtn.click();
-            }
-
-            if ($.trim($(this).val()) === "") {
-                $okBtn.prop("disabled", true);
-            } else {
-                $okBtn.prop("disabled", false);
-            }
-        });
-
-        $("#dialogSearchForm > input:eq(1)").keyup(function (event) {
-            var $okBtn = $(this).closest(".dialog-main").find(".dialog-footer > button:eq(0)");
-            if (event.which === 13 && !$okBtn.prop("disabled")) {
-                $okBtn.click();
-            }
-        });
-
-        $("#dialogSearchForm").dialog({
-            "modal": true,
-            "height": 62,
-            "width": 260,
-            "title": config.label.search,
-            "okText": config.label.search,
-            "cancelText": config.label.cancel,
-            "afterOpen": function () {
-                $("#dialogSearchForm > input:eq(0)").val('').focus();
-                $("#dialogSearchForm > input:eq(1)").val('');
-                $("#dialogSearchForm").closest(".dialog-main").find(".dialog-footer > button:eq(0)").prop("disabled", true);
-            },
-            "ok": function () {
-                var request = newWideRequest();
-                request.dir = wide.curNode.path;
-                request.text = $("#dialogSearchForm > input:eq(0)").val();
-                request.extension = $("#dialogSearchForm > input:eq(1)").val();
-
-                $.ajax({
-                    type: 'POST',
-                    url: '/file/search/text',
-                    data: JSON.stringify(request),
-                    dataType: "json",
-                    success: function (data) {
-                        if (!data.succ) {
-                            return;
-                        }
-
-                        $("#dialogSearchForm").dialog("close");
-                        editors.appendSearch(data.founds, 'founds', request.text);
-                    }
-                });
-            }
-        });
-
-        $("#dialogAbout").load('/about', function () {
-            $("#dialogAbout").dialog({
-                "modal": true,
-                "height": 460,
-                "width": 800,
-                "title": config.label.about,
-                "hideFooter": true,
-                "afterOpen": function () {
-                    $.ajax({
-                        url: "http://rhythm.b3log.org/version/wide/latest",
-                        type: "GET",
-                        dataType: "jsonp",
-                        jsonp: "callback",
-                        success: function (data, textStatus) {
-                           if ($("#dialogAbout .version").text() === data.wideVersion) {
-                               $(".upgrade").text(config.label.uptodate);
-                           } else {
-                                $(".upgrade").html(config.label.new_version_available + config.label.colon 
-                                        + "<a href='" + data.wideDownload 
-                                        + "' target='_blank'>" + data.wideVersion + "</a>");
-                           }
-                        }
-                    });
-                }
-            });
         });
     },
     _initLayout: function () {
-        var mainH = $(window).height() - $(".menu").height() - $(".footer").height() - 1,
+        var mainH = $(window).height() - $(".menu").height() - $(".footer").height() - 2,
                 bottomH = Math.floor(mainH * 0.3);
-        $(".content").height(mainH);
+        // 减小初始化界面抖动
+        $(".content").height(mainH).css("position", "relative");
         $(".side .tabs-panel").height(mainH - 20);
 
-        $(".bottom-window-group > .tabs-panel > div > div").height(bottomH - 20);
-    },
-    _initBottomWindowGroup: function () {
-        this.bottomWindowTab = new Tabs({
-            id: ".bottom-window-group",
-            clickAfter: function (id) {
-                this._$tabsPanel.find("." + id).focus();
-            }
-        });
+        var $bottomGroup = $(".bottom-window-group");
+        if ($bottomGroup.hasClass("bottom-window-group-max")) {
+            $(".bottom-window-group > .tabs-panel > div > div").height(mainH - $bottomGroup.children(".tabs").height());
+        } else {
+            $(".bottom-window-group > .tabs-panel > div > div").height(bottomH - $bottomGroup.children(".tabs").height());
+        }
     },
     _initWS: function () {
-        var outputWS = new ReconnectingWebSocket(config.channel.output + '/output/ws?sid=' + config.wideSessionId);
+        var outputWS = new ReconnectingWebSocket(config.channel + '/output/ws?sid=' + config.wideSessionId);
         outputWS.onopen = function () {
             console.log('[output onopen] connected');
         };
@@ -331,61 +342,73 @@ var wide = {
 
                 $.ajax({
                     type: 'POST',
-                    url: '/run',
+                    url: config.context + '/run',
                     data: JSON.stringify(request),
                     dataType: "json"
                 });
             }
 
             switch (data.cmd) {
-                case 'run': // 正在运行
-                    wide.fillOutput($('.bottom-window-group .output > div').html() + data.output);
+                case 'run':
+                    if (!wide.curProcessId) { // output first time
+                        bottomGroup.fillOutput($('.bottom-window-group .output > div').html() + '<pre>' + data.output + '</pre>');
+                    } else { // the following outputs
+                        bottomGroup.fillOutput($('.bottom-window-group .output > div').html().replace(/<\/pre>$/g, data.output + '</pre>'));
+                    }
+
                     wide.curProcessId = data.pid;
 
                     break;
-                case 'run-done': // 运行结束  
+                case 'run-done':
                     wide.curProcessId = undefined;
-                    // 运行结束后修改 [构建&运行] 图标状态为可用状态
-                    $(".toolbars .ico-stop").removeClass("ico-stop")
+                    $("#buildRun").removeClass("ico-stop")
                             .addClass("ico-buildrun").attr("title", config.label.build_n_run);
 
                     break;
                 case 'start-build':
+                case 'start-test':
                 case 'start-install':
                 case 'start-get':
-                    wide.fillOutput(data.output);
+                    bottomGroup.fillOutput(data.output);
 
                     break;
+                case 'go test':
                 case 'go install':
                 case 'go get':
-                    wide.fillOutput($('.bottom-window-group .output > div').html() + data.output);
+                    bottomGroup.fillOutput($('.bottom-window-group .output > div').html() + data.output);
 
                     break;
                 case 'build':
-                    wide.fillOutput($('.bottom-window-group .output > div').html() + data.output);
+                    bottomGroup.fillOutput($('.bottom-window-group .output > div').html() + data.output);
 
-                    if (data.lints) { // 说明编译有错误输出            
+                    if (data.lints) { // has build error
+                        var files = {};
+
                         for (var i = 0; i < data.lints.length; i++) {
                             var lint = data.lints[i];
 
                             goLintFound.push({from: CodeMirror.Pos(lint.lineNo, 0),
                                 to: CodeMirror.Pos(lint.lineNo, 0),
                                 message: lint.msg, severity: lint.severity});
+
+                            files[lint.file] = lint.file;
                         }
 
-                        $(".toolbars .ico-stop").removeClass("ico-stop")
+                        $("#buildRun").removeClass("ico-stop")
                                 .addClass("ico-buildrun").attr("title", config.label.build_n_run);
-                    }
 
-                    // 触发一次 gutter lint
-                    CodeMirror.signal(wide.curEditor, "change", wide.curEditor);
+                        // trigger gutter lint
+                        for (var path in files) {
+                            var editor = editors.getEditorByPath(path);
+                            CodeMirror.signal(editor, "change", editor);
+                        }
+                    }
 
                     break;
             }
         };
         outputWS.onclose = function (e) {
             console.log('[output onclose] disconnected (' + e.code + ')');
-            delete outputWS;
         };
         outputWS.onerror = function (e) {
             console.log('[output onerror] ' + e);
@@ -401,8 +424,6 @@ var wide = {
 
         this._initWS();
 
-        this._initBottomWindowGroup();
-
         // 点击隐藏弹出层
         $("body").bind("mousedown", function (event) {
             if (!(event.target.id === "dirRMenu" || $(event.target).closest("#dirRMenu").length > 0)) {
@@ -415,7 +436,7 @@ var wide = {
 
             if (!($(event.target).closest(".frame").length > 0 || event.target.className === "frame")) {
                 $(".frame").hide();
-                $(".menu > ul > li > a, .menu > ul> li > span").unbind("mouseover");
+                $(".menu > ul > li > a, .menu > ul> li > span").unbind("mouseover").removeClass("selected");
                 menu.subMenu();
             }
         });
@@ -435,78 +456,70 @@ var wide = {
         this._initDialog();
 
         this._initLayout();
+
+        $(window).resize(function () {
+            wide._initLayout();
+            var editorDatas = editors.data,
+                    height = $(".edit-panel").height() - $(".edit-panel .tabs").height();
+            for (var i = 0, ii = editorDatas.length; i < ii; i++) {
+                editorDatas[i].editor.setSize("100%", height);
+            }
+
+        });
     },
-    _save: function () {
-        var currentPath = editors.getCurrentPath();
-        if (!currentPath) {
+    _save: function (path, editor) {
+        if (!path) {
             return false;
         }
 
         var request = newWideRequest();
-        request.file = currentPath;
-        request.code = wide.curEditor.getValue();
+        request.file = path;
+        request.code = editor.getValue();
 
         $.ajax({
             type: 'POST',
-            url: '/file/save',
+            url: config.context + '/file/save',
             data: JSON.stringify(request),
             dataType: "json",
             success: function (data) {
+                // reset the save state
+
+                editor.doc.markClean();
+                $(".edit-panel .tabs > div").each(function () {
+                    var $span = $(this).find("span:eq(0)");
+                    if ($span.attr("title") === path) {
+                        $span.removeClass("changed");
+                    }
+                });
             }
         });
     },
     saveFile: function () {
-        var currentPath = editors.getCurrentPath();
-        if (!currentPath) {
+        var path = editors.getCurrentPath();
+        if (!path) {
             return false;
         }
 
-        // 格式化后会对文件进行保存
-        this.fmt(currentPath, wide.curEditor);
-    },
-    saveAllFiles: function () {
-        if ($(".menu li.save-all").hasClass("disabled")) {
+        var editor = wide.curEditor;
+        if (editor.doc.isClean()) { // no modification
             return false;
         }
 
-        // TODO: 只保存未保存过的文件
+        if ("text/x-go" === editor.getOption("mode")) {
+            wide.gofmt(path, wide.curEditor); // go fmt will save
 
-        for (var i = 0, ii = editors.data.length; i < ii; i++) {
-            this.fmt(tree.fileTree.getNodeByTId(editors.data[i].id).path, editors.data[i].editor);
+            return;
         }
-    },
-    closeAllFiles: function () {
-        if ($(".menu li.close-all").hasClass("disabled")) {
-            return false;
-        }
-        this.saveAllFiles();
-        editors.data = [];
-        tree.fileTree.cancelSelectedNode();
-        wide.curNode = undefined;
-        wide.curEditor = undefined;
-        $(".toolbars").hide();
 
-        $(".edit-panel .tabs, .edit-panel .tabs-panel").html('');
-        menu.disabled(['save-all', 'close-all', 'run', 'go-get', 'go-install']);
-    },
-    exit: function () {
-        var request = newWideRequest();
-
-        $.ajax({
-            type: 'POST',
-            url: '/logout',
-            data: JSON.stringify(request),
-            dataType: "json",
-            success: function (data) {
-                if (data.succ) {
-                    window.location.href = "/login";
-                }
-            }
-        });
+        wide._save(path, wide.curEditor);
     },
     stop: function () {
-        if ($(".toolbars .ico-buildrun").length === 1) {
-            wide.run();
+        if ($("#buildRun").hasClass("ico-buildrun")) {
+            menu.run();
+            return false;
+        }
+
+        if (!wide.curProcessId) {
             return false;
         }
 
@@ -515,213 +528,137 @@ var wide = {
 
         $.ajax({
             type: 'POST',
-            url: '/stop',
+            url: config.context + '/stop',
             data: JSON.stringify(request),
             dataType: "json",
             success: function (data) {
-                $(".toolbars .ico-stop").removeClass("ico-stop")
+                $("#buildRun").removeClass("ico-stop")
                         .addClass("ico-buildrun").attr("title", config.label.build_n_run);
             }
         });
     },
-    fillOutput: function (data) {
-        var $output = $('.bottom-window-group .output');
-        $output.find("div").html(data.replace(/\n/g, '<br/>'));
-        $output.parent().scrollTop($output[0].scrollHeight);
-    },
-    // 构建.
-    build: function () {
-        wide.saveAllFiles();
-
-        var currentPath = editors.getCurrentPath();
-        if (!currentPath) {
-            return false;
-        }
-
-        var request = newWideRequest();
-        request.file = currentPath;
-        request.code = wide.curEditor.getValue();
-        request.nextCmd = ""; // 只构建，无下一步操作
-
-        $.ajax({
-            type: 'POST',
-            url: '/build',
-            data: JSON.stringify(request),
-            dataType: "json",
-            beforeSend: function (data) {
-                $('.bottom-window-group .output > div').text('');
-                wide.bottomWindowTab.setCurrent("output");
-                windows.flowBottom();
-            },
-            success: function (data) {
-            }
-        });
-    },
-    // 构建并运行.
-    run: function () {
-        wide.saveAllFiles();
-
-        var currentPath = editors.getCurrentPath();
-        if (!currentPath) {
-            return false;
-        }
-
-        if ($(".menu li.run").hasClass("disabled")) {
-            return false;
-        }
-
-        if ($(".toolbars .ico-stop").length === 1) {
-            wide.stop();
-            return false;
-        }
-
-        var request = newWideRequest();
-        request.file = currentPath;
-        request.code = wide.curEditor.getValue();
-        request.nextCmd = "run";
-
-        $.ajax({
-            type: 'POST',
-            url: '/build',
-            data: JSON.stringify(request),
-            dataType: "json",
-            beforeSend: function (data) {
-                $('.bottom-window-group .output > div').text('');
-                wide.bottomWindowTab.setCurrent("output");
-                windows.flowBottom();
-            },
-            success: function (data) {
-                $(".toolbars .ico-buildrun").addClass("ico-stop")
-                        .removeClass("ico-buildrun").attr("title", config.label.stop);
-            }
-        });
-    },
-    goget: function () {
-        wide.saveAllFiles();
-
-        var currentPath = editors.getCurrentPath();
-        if (!currentPath) {
-            return false;
-        }
-
-        if ($(".menu li.go-get").hasClass("disabled")) {
-            return false;
-        }
-
-        var request = newWideRequest();
-        request.file = currentPath;
-
-        $.ajax({
-            type: 'POST',
-            url: '/go/get',
-            data: JSON.stringify(request),
-            dataType: "json",
-            beforeSend: function (data) {
-                $('.bottom-window-group .output > div').text('');
-                wide.bottomWindowTab.setCurrent("output");
-                windows.flowBottom();
-            },
-            success: function (data) {
-            }
-        });
-    },
-    goinstall: function () {
-        wide.saveAllFiles();
-
-        var currentPath = editors.getCurrentPath();
-        if (!currentPath) {
-            return false;
-        }
-
-        if ($(".menu li.go-install").hasClass("disabled")) {
-            return false;
-        }
-
-        var request = newWideRequest();
-        request.file = currentPath;
-        request.code = wide.curEditor.getValue();
-
-        $.ajax({
-            type: 'POST',
-            url: '/go/install',
-            data: JSON.stringify(request),
-            dataType: "json",
-            beforeSend: function (data) {
-                $('.bottom-window-group .output > div').text('');
-                wide.bottomWindowTab.setCurrent("output");
-                windows.flowBottom();
-            },
-            success: function (data) {
-            }
-        });
-    },
-    fmt: function (path, curEditor) {
-        var mode = curEditor.getOption("mode");
-
-        var cursor = curEditor.getCursor();
-        var scrollInfo = curEditor.getScrollInfo();
+    gofmt: function (path, editor) {
+        var cursor = editor.getCursor();
+        var scrollInfo = editor.getScrollInfo();
 
         var request = newWideRequest();
         request.file = path;
-        request.code = curEditor.getValue();
+        request.code = editor.getValue();
         request.cursorLine = cursor.line;
         request.cursorCh = cursor.ch;
 
-        switch (mode) {
-            case "text/x-go": // 会保存文件
-                $.ajax({
-                    type: 'POST',
-                    url: '/go/fmt',
-                    data: JSON.stringify(request),
-                    dataType: "json",
-                    success: function (data) {
-                        if (data.succ) {
-                            curEditor.setValue(data.code);
-                            curEditor.setCursor(cursor);
-                            curEditor.scrollTo(null, scrollInfo.top);
-                        }
-                    }
-                });
+        $.ajax({
+            async: false, // sync
+            type: 'POST',
+            url: config.context + '/go/fmt',
+            data: JSON.stringify(request),
+            dataType: "json",
+            success: function (data) {
+                if (data.succ) {
+                    editor.setValue(data.code);
+                    editor.setCursor(cursor);
+                    editor.scrollTo(null, scrollInfo.top);
 
-                break;
-            case "text/html": // 会保存文件
-                $.ajax({
-                    type: 'POST',
-                    url: '/html/fmt',
-                    data: JSON.stringify(request),
-                    dataType: "json",
-                    success: function (data) {
-                        if (data.succ) {
-                            curEditor.setValue(data.code);
-                            curEditor.setCursor(cursor);
-                            curEditor.scrollTo(null, scrollInfo.top);
-                        }
-                    }
-                });
-
-                break;
-            case "application/json":
-                try {
-                    // 在客户端浏览器中进行 JSON 格式化
-                    var json = JSON.parse(curEditor.getValue());
-                    curEditor.setValue(JSON.stringify(json, "", "    "));
-                    curEditor.setCursor(cursor);
-                    curEditor.scrollTo(null, scrollInfo.top);
-
-                    wide._save();
-                } catch (e) {
-                    delete e;
+                    wide._save(path, editor);
                 }
+            }
+        });
+    },
+    fmt: function (path, editor) {
+        var mode = editor.getOption("mode");
+
+        var cursor = editor.getCursor();
+        var scrollInfo = editor.getScrollInfo();
+
+        var request = newWideRequest();
+        request.file = path;
+        request.code = editor.getValue();
+        request.cursorLine = cursor.line;
+        request.cursorCh = cursor.ch;
+
+        var formatted = null;
+
+        switch (mode) {
+            case "text/x-go":
+                $.ajax({
+                    async: false, // sync
+                    type: 'POST',
+                    url: config.context + '/go/fmt',
+                    data: JSON.stringify(request),
+                    dataType: "json",
+                    success: function (data) {
+                        if (data.succ) {
+                            formatted = data.code;
+                        }
+                    }
+                });
+
+                break;
+            case "text/html":
+                formatted = html_beautify(editor.getValue());
+                break;
+            case "text/javascript":
+            case "application/json":
+                formatted = js_beautify(editor.getValue());
+                break;
+            case "text/css":
+                formatted = css_beautify(editor.getValue());
                 break;
             default :
-                // TODO: XML 格式化处理
-                // 所有文件格式化后都需要进行保存
-                wide._save();
                 break;
         }
+
+        if (formatted) {
+            editor.setValue(formatted);
+            editor.setCursor(cursor);
+            editor.scrollTo(null, scrollInfo.top);
+
+            wide._save(path, editor);
+        }
     },
-    openAbout: function () {
-        $("#dialogAbout").dialog("open");
+    getClassBySuffix: function (suffix) {
+        var iconSkin = "ico-ztree-other ";
+        switch (suffix) {
+            case "html":
+            case "htm":
+                iconSkin = "ico-ztree-html ";
+                break;
+            case "go":
+                iconSkin = "ico-ztree-go ";
+                break;
+            case "css":
+                iconSkin = "ico-ztree-css ";
+                break;
+            case "txt":
+                iconSkin = "ico-ztree-text ";
+                break;
+            case "sql":
+                iconSkin = "ico-ztree-sql ";
+                break;
+            case "properties":
+                iconSkin = "ico-ztree-pro ";
+                break;
+            case "md":
+                iconSkin = "ico-ztree-md ";
+                break;
+            case "js", "json":
+                iconSkin = "ico-ztree-js ";
+                break;
+            case "xml":
+                iconSkin = "ico-ztree-xml ";
+                break;
+            case "jpg":
+            case "jpeg":
+            case "bmp":
+            case "gif":
+            case "png":
+            case "svg":
+            case "ico":
+                iconSkin = "ico-ztree-img ";
+                break;
+        }
+
+        return iconSkin;
     }
 };
 
@@ -734,4 +671,5 @@ $(document).ready(function () {
     session.init();
     editors.init();
     windows.init();
+    bottomGroup.init();
 });

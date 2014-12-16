@@ -1,25 +1,42 @@
 {
-    "Server": "{IP}:7070",
-    "StaticServer": "http://{IP}:7070",
-    "EditorChannel": "ws://{IP}:7070",
-    "OutputChannel": "ws://{IP}:7070",
-    "ShellChannel": "ws://{IP}:7070",
-    "SessionChannel": "ws://{IP}:7070",
+    "IP": "${ip}",
+    "Port": "7070",
+    "Context": "",
+    "Server": "{IP}:{Port}",
+    "StaticServer": "",
+    "LogLevel": "info",
+    "Channel": "ws://{IP}:{Port}",
     "HTTPSessionMaxAge": 86400,
-    "StaticResourceVersion": "201410241024",
+    "StaticResourceVersion": "${time}",
     "MaxProcs": 4,
     "RuntimeMode": "dev",
-    "Pwd": "{pwd}",
-    "Workspace": "{pwd}/data/workspace",
-    "Locale": "zh_CN",
+    "WD": "${pwd}",
+    "Locale": "en_US",
     "Users": [
         {
             "Name": "admin",
             "Password": "admin",
-            "Workspace": "{pwd}/data/user_workspaces/admin",
-            "Locale": "zh_CN",
+            "Email": "",
+            "Gravatar": "",
+            "Workspace": "${GOPATH}",
+            "Locale": "en_US",
+            "GoFormat": "gofmt",
+            "FontFamily": "Helvetica",
+            "FontSize": "13px",
+            "Theme": "default",
+            "Editor": {
+                "FontFamily": "Consolas, 'Courier New', monospace",
+                "FontSize": "13px",
+                "LineHeight": "17px",
+                "Theme": "wide",
+                "TabSize": "4"
+            },
             "LatestSessionContent": {
-                "FileTree": [],
+                "FileTree": [
+                    "D:\\GoGoGo\\src",
+                    "D:\\GoGoGo\\src\\demo",
+                    "D:\\GoGoGo\\src\\hello"
+                ],
                 "Files": [],
                 "CurrentFile": ""
             }

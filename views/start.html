@@ -5,6 +5,10 @@
             <label>{{.i18n.current_user}}{{.i18n.colon}}</label>
             {{.username}}
         </li>
+        <li>
+            <label>{{.i18n.current_session}}{{.i18n.colon}}</label>
+            {{.session.ID}}
+        </li>
         <li class="border workspace">
             <label>{{.i18n.workspace}}{{.i18n.colon}}</label>
             <span>{{.workspace}}</span>
@@ -22,7 +26,7 @@
             <a href="https://github.com/b3log/b3log-solo/wiki/About_us" target="_blank">B3log</a>
         </li>
         <li>
-            <label>{{.i18n.donate_us}}{{.i18n.colon}}</label>
+            <label>{{.i18n.donate}}{{.i18n.colon}}</label>
             <a href="http://b3log.org/donate.html" target="_blank">b3log.org/donate.html</a>
         </li>
     </ul>

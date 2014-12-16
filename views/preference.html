@@ -1,0 +1,102 @@
+<div class="preference">
+    <div class="tabs">
+        <div class="current" data-index="appearence">
+            <span title="{{.i18n.appearence}}">{{.i18n.appearence}}</span>
+        </div>
+        <div data-index="editor">
+            <span title="{{.i18n.editor}}">{{.i18n.editor}}</span>
+        </div>
+        <div data-index="gotool">
+            <span title="{{.i18n.gotool}}">{{.i18n.gotool}}</span>
+        </div>
+        <div data-index="user">
+            <span title="{{.i18n.user}}">{{.i18n.user}}</span>
+        </div>
+    </div>
+    <div class="tabs-panel">
+        <div data-index="appearence">
+            <label>
+                {{.i18n.font}}{{.i18n.colon}}
+                <input data-value="{{.user.FontFamily}}" value="{{.user.FontFamily}}" name="fontFamily"/>
+            </label>
+            <label>
+                {{.i18n.font_size}}{{.i18n.colon}}
+                <input data-value="{{.user.FontSize}}" value="{{.user.FontSize}}" name="fontSize"/>
+            </label>
+            <label>
+                {{.i18n.theme}}{{.i18n.colon}}
+                <select class="select" name="theme" data-value="{{.user.Theme}}">
+                    {{range $index, $theme := .themes }}
+                    <option value="{{$theme}}" {{if eq $.user.Theme $theme}}selected="selected"{{end}}>{{$theme}}</option>
+                    {{end}}
+                </select>
+            </label>
+        </div>
+        <div class="fn-none" data-index="editor">
+            <label>
+                {{.i18n.font}}{{.i18n.colon}}
+                <input data-value="{{.user.Editor.FontFamily}}" value="{{.user.Editor.FontFamily}}" name="editorFontFamily"/>
+            </label>
+            <label>
+                {{.i18n.font_size}}{{.i18n.colon}}
+                <input data-value="{{.user.Editor.FontSize}}" value="{{.user.Editor.FontSize}}" name="editorFontSize"/>
+            </label>
+            <label>
+                {{.i18n.line_height}}{{.i18n.colon}}
+                <input data-value="{{.user.Editor.LineHeight}}" value="{{.user.Editor.LineHeight}}" name="editorLineHeight"/>
+            </label>
+            <label>
+                {{.i18n.tab_size}}{{.i18n.colon}}
+                <input data-value="{{.user.Editor.TabSize}}" value="{{.user.Editor.TabSize}}" name="editorTabSize"/>
+            </label>
+            <label>
+                {{.i18n.theme}}{{.i18n.colon}}
+                <select class="select" name="editorTheme" data-value="{{.user.Editor.Theme}}">
+                    {{range $index, $theme := .editorThemes }}
+                    <option value="{{$theme}}" {{if eq $.user.Editor.Theme $theme}}selected="selected"{{end}}>{{$theme}}</option>
+                    {{end}}
+                </select>
+            </label>
+        </div>
+        <div class="fn-none" data-index="gotool">
+            <label>
+                {{.i18n.go_format}}{{.i18n.colon}}
+                <select class="select" data-value="{{.user.GoFormat}}" name="goFmt">
+                    {{range $index, $gofmt := .gofmts }}
+                    <option name="{{$gofmt}}" value="{{$gofmt}}" {{if eq $.user.GoFormat $gofmt}}selected="selected"{{end}}>{{$gofmt}}</option>
+                    {{end}}
+                </select>
+            </label>
+        </div>
+        <div class="fn-none" data-index="user">
+            <label>
+                {{.i18n.locale}}{{.i18n.colon}}
+                <select class="select" name="locale" data-value="{{.user.Locale}}">
+                    {{range $index, $localeName := .locales }}
+                    <option name="{{$localeName}}" value="{{$localeName}}" {{if eq $.user.Locale $localeName}}selected="selected"{{end}}>{{$localeName}}</option>
+                    {{end}}
+                </select>
+            </label>
+            <label>
+                {{.i18n.email}}{{.i18n.colon}}
+                <input data-value="{{.user.Email}}" value="{{.user.Email}}" name="email"/>
+            </label>
+            <input data-value="{{.user.Locale}}" value="{{.user.Locale}}" name="locale" hidden="hidden" />
+            <label>
+                {{.i18n.workspace}}{{.i18n.colon}}
+                <input data-value="{{.user.Workspace}}" value="{{.user.Workspace}}" name="workspace"/>
+            </label>
+            <label>
+                {{.i18n.password}}{{.i18n.colon}}
+                <input data-value="{{.user.Password}}" value="{{.user.Password}}" name="password" type="password"/>
+            </label>
+            <label class="fn-clear">
+                <img onerror="this.src='/static/images/user-thumbnail.png'"
+                     src="https://secure.gravatar.com/avatar/{{.user.Gravatar}}?s=48&d=http://symphony.b3log.org/images/user-thumbnail.png" 
+                     title="{{.user.Name}}" class='gravatar'/>
+                <a href="http://gravatar.com/" target="_blank">{{.i18n.change_avatar}} Gravatar.com</a>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="tip ft-red"></div>

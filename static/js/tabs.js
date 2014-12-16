@@ -1,3 +1,19 @@
+/* 
+ * Copyright (c) 2014, B3log
+ *  
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *  
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *  
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var Tabs = function (obj) {
     obj._$tabsPanel = $(obj.id + " > .tabs-panel");
     obj._$tabs = $(obj.id + " > .tabs");
@@ -22,8 +38,16 @@ $.extend(Tabs.prototype, {
         });
 
         obj._$tabs.on("click", ".ico-close", function (event) {
-            var id = $(this).parent().data("index");
-            _that.del(id);
+            var id = $(this).parent().data("index"),
+                    isRemove = true;
+
+            if (typeof obj.removeBefore === 'function') {
+                isRemove = obj.removeBefore(id);
+            }
+
+            if (isRemove) {
+                _that.del(id);
+            }
             event.stopPropagation();
         });
     },
@@ -50,7 +74,7 @@ $.extend(Tabs.prototype, {
                 $tabs = this.obj._$tabs;
 
         $tabs.append('<div data-index="' + data.id + '">'
-                + data.title + '<span class="ico-close font-ico"></span></div>');
+                + data.title + ' <span class="ico-close font-ico"></span></div>');
         $tabsPanel.append('<div data-index="' + data.id + '">' + data.content
                 + '</div>');
 
@@ -65,6 +89,7 @@ $.extend(Tabs.prototype, {
                 $tabs = this.obj._$tabs,
                 stack = this.obj._stack,
                 prevId = null;
+
         $tabs.children("div[data-index='" + id + "']").remove();
         $tabsPanel.children("div[data-index='" + id + "']").remove();
 
@@ -74,7 +99,7 @@ $.extend(Tabs.prototype, {
                 stack.splice(i, 1);
             }
         }
-        
+
         prevId = stack[stack.length - 1];
 
         if (typeof this.obj.removeAfter === 'function') {
@@ -114,5 +139,9 @@ $.extend(Tabs.prototype, {
 
         $tabs.children("div[data-index='" + id + "']").addClass("current");
         $tabsPanel.children("div[data-index='" + id + "']").show();
+
+        if (typeof this.obj.setAfter === 'function') {
+            this.obj.setAfter();
+        }
     }
 });

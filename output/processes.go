@@ -1,3 +1,17 @@
+// Copyright (c) 2014, B3log
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package output
 
 import (
@@ -5,85 +19,84 @@ import (
 	"sync"
 
 	"github.com/b3log/wide/session"
-	"github.com/golang/glog"
 )
 
-// 进程集类型.
+// Type of process set.
 type procs map[string][]*os.Process
 
-// 所有用户正在运行的程序进程集.
+// Processse of all users.
 //
 // <sid, []*os.Process>
 var processes = procs{}
 
-// 排它锁，防止并发修改.
+// Exclusive lock.
 var mutex sync.Mutex
 
-// 添加用户执行进程.
+// add adds the specified process to the user process set.
 func (procs *procs) add(wSession *session.WideSession, proc *os.Process) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	sid := wSession.Id
+	sid := wSession.ID
 	userProcesses := (*procs)[sid]
 
 	userProcesses = append(userProcesses, proc)
 	(*procs)[sid] = userProcesses
 
-	// 会话关联进程
+	// bind process with wide session
 	wSession.SetProcesses(userProcesses)
 
-	glog.V(3).Infof("Session [%s] has [%d] processes", sid, len((*procs)[sid]))
+	logger.Debugf("Session [%s] has [%d] processes", sid, len((*procs)[sid]))
 }
 
-// 移除用户执行进程.
+// remove removes the specified process from the user process set.
 func (procs *procs) remove(wSession *session.WideSession, proc *os.Process) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	sid := wSession.Id
+	sid := wSession.ID
 
 	userProcesses := (*procs)[sid]
 
 	var newProcesses []*os.Process
 	for i, p := range userProcesses {
 		if p.Pid == proc.Pid {
-			newProcesses = append(userProcesses[:i], userProcesses[i+1:]...)
+			newProcesses = append(userProcesses[:i], userProcesses[i+1:]...) // remove it
 			(*procs)[sid] = newProcesses
 
-			// 会话关联进程
+			// bind process with wide session
 			wSession.SetProcesses(newProcesses)
 
-			glog.V(3).Infof("Session [%s] has [%d] processes", sid, len((*procs)[sid]))
+			logger.Debugf("Session [%s] has [%d] processes", sid, len((*procs)[sid]))
 
 			return
 		}
 	}
 }
 
-// 结束用户正在执行的进程.
+// kill kills a process specified by the given pid.
 func (procs *procs) kill(wSession *session.WideSession, pid int) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	sid := wSession.Id
+	sid := wSession.ID
 
 	userProcesses := (*procs)[sid]
 
 	for i, p := range userProcesses {
 		if p.Pid == pid {
 			if err := p.Kill(); nil != err {
-				glog.Error("Kill a process [pid=%d] of session [%s] failed [error=%v]", pid, sid, err)
+				logger.Error("Kill a process [pid=%d] of session [%s] failed [error=%v]", pid, sid, err)
 			} else {
 				var newProcesses []*os.Process
 
 				newProcesses = append(userProcesses[:i], userProcesses[i+1:]...)
 				(*procs)[sid] = newProcesses
 
-				// 会话关联进程
+				// bind process with wide session
 				wSession.SetProcesses(newProcesses)
 
-				glog.V(3).Infof("Killed a process [pid=%d] of session [%s]", pid, sid)
+				logger.Debugf("Killed a process [pid=%d] of session [%s]", pid, sid)
 			}
 
 			return
