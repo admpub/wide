@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -35,24 +35,25 @@ var bottomGroup = {
         });
     },
     _initFrame: function () {
-        $(".bottom-window-group .output").mousedown(function (event) {
+        $(".bottom-window-group .output").parent().mouseup(function (event) {
             event.stopPropagation();
 
             if (event.button === 0) { // 左键
                 $(".bottom-window-group .frame").hide();
-                return false;
+                return;
             }
 
             // event.button === 2 右键
-            var left = event.screenX;
+            var left = event.screenX,
+                    $it = $(this);
             if ($(".side").css("left") === "auto" || $(".side").css("left") === "0px") {
                 left = event.screenX - $(".side").width();
             }
             $(".bottom-window-group .frame").show().css({
                 "left": left + "px",
-                "top": (event.offsetY + 20) + "px"
+                "top": (event.offsetY + event.target.offsetTop - $it.scrollTop() - 10) + "px"
             });
-            return false;
+            return;
         });
     },
     clear: function (id) {
@@ -73,7 +74,14 @@ var bottomGroup = {
     },
     fillOutput: function (data) {
         var $output = $('.bottom-window-group .output');
-        $output.find("div").html(data.replace(/\n/g, '<br/>'));
+
+        data = data.replace(/\n/g, '<br/>');
+
+        if (-1 !== data.indexOf("<br/>")) {
+            data = Autolinker.link(data);
+        }
+
+        $output.find("div").html(data);
         $output.parent().scrollTop($output[0].scrollHeight);
     }
 };

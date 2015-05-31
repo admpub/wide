@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,7 +16,7 @@
 
 var hotkeys = {
     defaultKeyMap: {
-        // Ctrl-0 焦点切换到当前编辑器   
+        // Ctrl-0
         goEditor: {
             ctrlKey: true,
             altKey: false,
@@ -28,7 +28,7 @@ var hotkeys = {
                 }
             }
         },
-        // Ctrl-1 焦点切换到文件树
+        // Ctrl-1
         goFileTree: {
             ctrlKey: true,
             altKey: false,
@@ -41,17 +41,29 @@ var hotkeys = {
                     $(".side").css({
                         "left": "0"
                     });
-
-                    if ($(".footer .ico-restore:eq(1)").css("display") === "inline") {
-                        // 当底部最小化时
-                        $(".bottom-window-group").css("top", "100%").hide();
-                    }
                 }
 
                 $("#files").focus();
             }
         },
-        // Ctrl-4 焦点切换到输出窗口   
+        // Ctrl-2
+        goOutline: {
+            ctrlKey: true,
+            altKey: false,
+            shiftKey: false,
+            which: 50,
+            fun: function () {
+                if ($(".footer .ico-restore:eq(2)").css("display") === "inline") {
+                    // 当文件树最小化时
+                    $(".side-right").css({
+                        "right": "0"
+                    });
+                }
+
+                $("#outline").focus();
+            }
+        },
+        // Ctrl-4
         goOutput: {
             ctrlKey: true,
             altKey: false,
@@ -63,7 +75,7 @@ var hotkeys = {
                 $(".bottom-window-group .output").focus();
             }
         },
-        // Ctrl-5 焦点切换到搜索窗口   
+        // Ctrl-5
         goSearch: {
             ctrlKey: true,
             altKey: false,
@@ -75,7 +87,7 @@ var hotkeys = {
                 $(".bottom-window-group .search").focus();
             }
         },
-        // Ctrl-6 焦点切换到通知窗口   
+        // Ctrl-6
         goNotification: {
             ctrlKey: true,
             altKey: false,
@@ -87,10 +99,10 @@ var hotkeys = {
                 $(".bottom-window-group .notification").focus();
             }
         },
-        // Ctrl-C 清空窗口内容   
+        // Alt-C
         clearWindow: {
-            ctrlKey: true,
-            altKey: false,
+            ctrlKey: false,
+            altKey: true,
             shiftKey: false,
             which: 67
         },
@@ -101,21 +113,21 @@ var hotkeys = {
             shiftKey: false,
             which: 68
         },
-        // Ctrl-F 搜索  
+        // Ctrl-F search  
         search: {
             ctrlKey: true,
             altKey: false,
             shiftKey: false,
             which: 70
         },
-        // Ctrl-Q 关闭当前编辑器   
+        // Ctrl-Q close current editor   
         closeCurEditor: {
             ctrlKey: true,
             altKey: false,
             shiftKey: false,
             which: 81
         },
-        // Ctrl-R 重命名   
+        // Ctrl-R
         rename: {
             ctrlKey: true,
             altKey: false,
@@ -200,12 +212,13 @@ var hotkeys = {
     },
     _bindOutput: function () {
         $(".bottom-window-group .output").keydown(function (event) {
-            event.preventDefault();
-
             var hotKeys = hotkeys.defaultKeyMap;
-            if (event.ctrlKey === hotKeys.clearWindow.ctrlKey
-                    && event.which === hotKeys.clearWindow.which) {  // Ctrl-F 搜索
+            if (event.altKey === hotKeys.clearWindow.altKey
+                    && event.which === hotKeys.clearWindow.which) {  // Alt-C clear output
                 bottomGroup.clear('output');
+                
+                event.preventDefault();
+                
                 return;
             }
         });
@@ -245,7 +258,7 @@ var hotkeys = {
 
                         tree.fileTree.expandNode(wide.curNode, true, false, true);
                         $("#files").focus();
-                        
+
                         break;
                     }
 
@@ -280,7 +293,7 @@ var hotkeys = {
                 case 40: // down
                     var node = {};
 
-                    if (!wide.curNode) { // select the first one if no node been selected
+                    if (!wide.curNode) { // select the first one if no node been selected                        
                         node = tree.fileTree.getNodeByTId("files_1");
                     } else {
                         if (wide.curNode && tree.isBottomNode(wide.curNode)) {
@@ -366,6 +379,14 @@ var hotkeys = {
                 return;
             }
 
+            if (event.ctrlKey === hotKeys.goOutline.ctrlKey
+                    && event.which === hotKeys.goOutline.which) { // Ctrl-2 焦点切换到大纲
+                hotKeys.goOutline.fun();
+                event.preventDefault();
+
+                return;
+            }
+
             if (event.ctrlKey === hotKeys.goOutput.ctrlKey
                     && event.which === hotKeys.goOutput.which) { // Ctrl-4 焦点切换到输出窗口   
                 hotKeys.goOutput.fun();
@@ -405,19 +426,19 @@ var hotkeys = {
                         || document.activeElement.className === "search") {
                     // 焦点在底部窗口组时，对底部进行切换
                     var tabs = ["output", "search", "notification"],
-                            nextId = "";
+                            nextPath = "";
                     for (var i = 0, ii = tabs.length; i < ii; i++) {
                         if (document.activeElement.className === tabs[i]) {
                             if (i < ii - 1) {
-                                nextId = tabs[i + 1];
+                                nextPath = tabs[i + 1];
                             } else {
-                                nextId = tabs[0];
+                                nextPath = tabs[0];
                             }
                             break;
                         }
                     }
-                    bottomGroup.tabs.setCurrent(nextId);
-                    $(".bottom-window-group ." + nextId).focus();
+                    bottomGroup.tabs.setCurrent(nextPath);
+                    $(".bottom-window-group ." + nextPath).focus();
 
                     event.preventDefault();
 
@@ -425,16 +446,16 @@ var hotkeys = {
                 }
 
                 if (editors.data.length > 1) {
-                    var nextId = "";
+                    var nextPath = "";
                     for (var i = 0, ii = editors.data.length; i < ii; i++) {
                         var currentId = editors.getCurrentId();
                         if (currentId) {
                             if (currentId === editors.data[i].id) {
                                 if (i < ii - 1) {
-                                    nextId = editors.data[i + 1].id;
+                                    nextPath = editors.data[i + 1].id;
                                     wide.curEditor = editors.data[i + 1].editor;
                                 } else {
-                                    nextId = editors.data[0].id;
+                                    nextPath = editors.data[0].id;
                                     wide.curEditor = editors.data[0].editor;
                                 }
                                 break;
@@ -442,10 +463,14 @@ var hotkeys = {
                         }
                     }
 
-                    editors.tabs.setCurrent(nextId);
-                    wide.curNode = tree.fileTree.getNodeByTId(nextId);
+                    editors.tabs.setCurrent(nextPath);
+                    var nextTId = tree.getTIdByPath(nextPath);
+                    wide.curNode = tree.fileTree.getNodeByTId(nextTId);
+                    
                     tree.fileTree.selectNode(wide.curNode);
-
+                    wide.refreshOutline();
+                    var cursor = wide.curEditor.getCursor();
+                    $(".footer .cursor").text('|   ' + (cursor.line + 1) + ':' + (cursor.ch + 1) + '   |');
                     wide.curEditor.focus();
                 }
 

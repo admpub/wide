@@ -9,6 +9,9 @@
         <div data-index="gotool">
             <span title="{{.i18n.gotool}}">{{.i18n.gotool}}</span>
         </div>
+        <div data-index="keymap">
+            <span title="{{.i18n.keymap}}">{{.i18n.keymap}}</span>
+        </div>
         <div data-index="user">
             <span title="{{.i18n.user}}">{{.i18n.user}}</span>
         </div>
@@ -68,6 +71,15 @@
                 </select>
             </label>
         </div>
+        <div class="fn-none" data-index="keymap">
+            <label>
+                {{.i18n.keymap}}{{.i18n.colon}}
+                <select class="select" data-value="{{.user.Keymap}}" name="keymap">
+                    <option name="wide" value="wide" {{if eq $.user.Keymap "wide"}}selected="selected"{{end}}>wide</option>
+                    <option name="vim" value="vim" {{if eq $.user.Keymap "vim"}}selected="selected"{{end}}>vim</option>
+                </select>
+            </label>
+        </div>
         <div class="fn-none" data-index="user">
             <label>
                 {{.i18n.locale}}{{.i18n.colon}}
@@ -84,7 +96,7 @@
             <input data-value="{{.user.Locale}}" value="{{.user.Locale}}" name="locale" hidden="hidden" />
             <label>
                 {{.i18n.workspace}}{{.i18n.colon}}
-                <input data-value="{{.user.Workspace}}" value="{{.user.Workspace}}" name="workspace"/>
+                <input data-value="{{.user.Workspace}}" value="{{.user.Workspace}}" name="workspace" readonly="readonly" />
             </label>
             <label>
                 {{.i18n.password}}{{.i18n.colon}}
@@ -92,7 +104,7 @@
             </label>
             <label class="fn-clear">
                 <img onerror="this.src='/static/images/user-thumbnail.png'"
-                     src="https://secure.gravatar.com/avatar/{{.user.Gravatar}}?s=48&d=http://symphony.b3log.org/images/user-thumbnail.png" 
+                     src="https://secure.gravatar.com/avatar/{{.user.Gravatar}}?s=48&d=https://symphony.b3log.org/images/user-thumbnail.png" 
                      title="{{.user.Name}}" class='gravatar'/>
                 <a href="http://gravatar.com/" target="_blank">{{.i18n.change_avatar}} Gravatar.com</a>
             </label>

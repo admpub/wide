@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -89,15 +89,16 @@ var tree = {
             return tree.getAllParents(node.getParentNode(), parents);
         }
     },
-    isParents: function (tId, parentTId) {
+    isParents: function (tId, parentPath) {
         var node = tree.fileTree.getNodeByTId(tId);
         if (!node || !node.parentTId) {
             return false;
         } else {
-            if (node.parentTId === parentTId) {
+            var parentNode = tree.fileTree.getNodeByTId(node.parentTId);
+            if (node.path === parentPath) {
                 return true;
             } else {
-                return tree.isParents(node.parentTId, parentTId);
+                return tree.isParents(parentNode.tId, parentPath);
             }
         }
     },
@@ -105,7 +106,7 @@ var tree = {
         if (wide.curNode.iconSkin.indexOf("ico-ztree-dir") === 0) {
             return true;
         }
-        
+
         return false;
     },
     newFile: function (it) {
@@ -132,7 +133,7 @@ var tree = {
                 return false;
             }
         }
-        
+
         $("#dialogRemoveConfirm").dialog("open");
     },
     rename: function (it) {
@@ -141,20 +142,16 @@ var tree = {
                 return false;
             }
         }
-        
+
         $("#dialogRenamePrompt").dialog("open");
     },
-    export: function (it) {
-        if (it) {
-            if ($(it).hasClass("disabled")) {
-                return false;
-            }
-        }
-
-        var request = newWideRequest();
+    export: function () {
+        var request = newWideRequest(),
+                isSucc = false;
         request.path = wide.curNode.path;
 
         $.ajax({
+            async: false,
             type: 'POST',
             url: config.context + '/file/zip/new',
             data: JSON.stringify(request),
@@ -166,7 +163,33 @@ var tree = {
                     return false;
                 }
 
-                window.open(config.context + '/file/zip?path=' + wide.curNode.path + '.zip');
+                isSucc = true;
+            }
+        });
+
+        if (isSucc) {
+            window.open(config.context + '/file/zip?path=' + wide.curNode.path + ".zip");
+        }
+    },
+    decompress: function () {
+        var request = newWideRequest();
+        request.path = wide.curNode.path;
+
+        $.ajax({
+            async: false,
+            type: 'POST',
+            url: config.context + '/file/decompress',
+            data: JSON.stringify(request),
+            dataType: "json",
+            success: function (data) {
+                if (!data.succ) {
+                    $("#dialogAlert").dialog("open", data.msg);
+
+                    return false;
+                }
+
+                var dir = wide.curNode.getParentNode();
+                tree.fileTree.reAsyncChildNodes(dir, "refresh");
             }
         });
     },
@@ -179,13 +202,16 @@ var tree = {
 
         tree.fileTree.reAsyncChildNodes(wide.curNode, "refresh", true);
     },
-    import: function (it) {
+    gitClone: function (it) {
         if (it) {
             if ($(it).hasClass("disabled")) {
                 return false;
             }
         }
 
+        $("#dialogGitClonePrompt").dialog('open');
+    },
+    import: function () {
         var request = newWideRequest();
         request.path = wide.curNode.path;
 
@@ -195,6 +221,9 @@ var tree = {
             formData: request,
             done: function (e, data) {
                 tree.fileTree.reAsyncChildNodes(wide.curNode, "refresh");
+            },
+            fail: function () {
+                console.log(arguments);
             }
         });
     },
@@ -236,22 +265,38 @@ var tree = {
                                 }
                             },
                             onRightClick: function (event, treeId, treeNode) {
-                                if (treeNode) {
+                                if (treeNode && !treeNode.isGOAPI) {
+                                    menu.undisabled(['import', 'export', 'git-clone']);
+
                                     wide.curNode = treeNode;
                                     tree.fileTree.selectNode(treeNode);
 
-                                    if (!tree.isDir()) { // 如果右击了文件
+                                    if (!tree.isDir()) { // if right click on a file
                                         if (wide.curNode.removable) {
                                             $fileRMenu.find(".remove").removeClass("disabled");
                                         } else {
                                             $fileRMenu.find(".remove").addClass("disabled");
                                         }
 
+                                        if (wide.curNode.path.indexOf("zip", wide.curNode.path.length - "zip".length) === -1) { // !path.endsWith("zip")
+                                            $fileRMenu.find(".decompress").hide();
+                                        } else {
+                                            $fileRMenu.find(".decompress").show();
+                                        }
+
+                                        var top = event.clientY - 10;
+                                        if ($fileRMenu.height() + top > $('.content').height()) {
+                                            top = top - $fileRMenu.height() - 25;
+                                        }
                                         $fileRMenu.css({
-                                            "top": event.clientY - 10 + "px",
+                                            "top": top + "px",
                                             "left": event.clientX + "px",
                                             "display": "block"
                                         }).show();
+
+                                        $dirRMenu.hide();
+
+                                        menu.disabled(['import', 'git-clone']);
                                     } else { // 右击了目录
                                         if (wide.curNode.removable) {
                                             $dirRMenu.find(".remove").removeClass("disabled");
@@ -265,11 +310,18 @@ var tree = {
                                             $dirRMenu.find(".create").addClass("disabled");
                                         }
 
+                                        var top = event.clientY - 10;
+                                        if ($dirRMenu.height() + top > $('.content').height()) {
+                                            top = top - $dirRMenu.height() - 25;
+                                        }
+
                                         $dirRMenu.css({
-                                            "top": event.clientY - 10 + "px",
+                                            "top": top + "px",
                                             "left": event.clientX + "px",
                                             "display": "block"
                                         }).show();
+
+                                        $fileRMenu.hide();
                                     }
                                     $("#files").focus();
                                 }
@@ -278,6 +330,12 @@ var tree = {
                                 if (treeNode) {
                                     wide.curNode = treeNode;
                                     tree.fileTree.selectNode(treeNode);
+
+                                    menu.undisabled(['import', 'export', 'git-clone']);
+                                    if (!tree.isDir()) {
+                                        menu.disabled(['import', 'git-clone']);
+                                    }
+
                                     $("#files").focus();
                                 }
                             }
@@ -299,8 +357,8 @@ var tree = {
 
         for (var i = 0, ii = editors.data.length; i < ii; i++) {
             // 该节点文件已经打开
-            if (editors.data[i].id === treeNode.tId) {
-                editors.tabs.setCurrent(treeNode.tId);
+            if (editors.data[i].id === treeNode.path) {
+                editors.tabs.setCurrent(treeNode.path);
                 wide.curEditor = editors.data[i].editor;
 
                 if (!tempCursor) {
@@ -314,11 +372,12 @@ var tree = {
                 wide.curEditor.scrollTo(0, cursorCoords.top);
                 wide.curEditor.focus();
 
+                wide.refreshOutline();
                 return false;
             }
         }
 
-        if (!tree.isDir()) { // 如果单击了文件
+        if (!tree.isDir()) {
             var request = newWideRequest();
             request.path = treeNode.path;
 
@@ -335,6 +394,15 @@ var tree = {
                         return false;
                     }
 
+                    if (!data.mode) {
+                        var mode = CodeMirror.findModeByFileName(treeNode.path);
+                        data.mode = mode.mime;
+                    }
+                    
+                    if (!data.mode) {
+                        console.error("Can't find mode by file name [" + treeNode.path + "]");
+                    }
+
                     if ("img" === data.mode) { // 是图片文件的话新建 tab 打开
                         // 最好是开 tab，但这个最终取决于浏览器设置
                         var w = window.open(config.context + data.path);
@@ -344,7 +412,10 @@ var tree = {
                     if (!tempCursor) {
                         tempCursor = CodeMirror.Pos(0, 0);
                     }
+                    
                     editors.newEditor(data, tempCursor);
+
+                    wide.refreshOutline();
                 }
             });
         }
@@ -450,23 +521,30 @@ var tree = {
                         $("#dialogRenamePrompt").dialog("close");
 
                         // update tree node
-                        var suffixIndex = name.lastIndexOf('.'),
-                                iconSkin = wide.getClassBySuffix(name.substr(suffixIndex + 1));
+                        var suffixIndex = name.lastIndexOf('.');
+                        var suffix = name.substr(suffixIndex + 1);
+
+                        var iconSkin = 'ico-ztree-dir ';
+                        if ('f' === wide.curNode.type) {
+                            iconSkin = wide.getClassBySuffix(suffix);
+                        }
+
                         wide.curNode.name = name;
                         wide.curNode.title = request.newPath;
                         wide.curNode.path = request.newPath;
                         wide.curNode.iconSkin = iconSkin;
+
                         tree.fileTree.updateNode(wide.curNode);
 
                         // update open editor tab name
                         for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                            if (wide.curNode.tId === editors.data[i].id) {
-                                var info = CodeMirror.findModeByExtension(name.substr(suffixIndex + 1));
-                                if (info) {
-                                    editors.data[i].editor.setOption("mode", info.mime);
+                            if (wide.curNode.path === editors.data[i].id) {
+                                var mode = CodeMirror.findModeByExtension(suffix);
+                                if (mode) {
+                                    editors.data[i].editor.setOption("mode", mode.mime);
                                 }
 
-                                var $currentSpan = $(".edit-panel .tabs > div[data-index=" + wide.curNode.tId + "] > span:eq(0)");
+                                var $currentSpan = $('.edit-panel .tabs > div[data-index="' + wide.curNode.path + '"] > span:eq(0)');
                                 $currentSpan.attr("title", request.newPath);
                                 $currentSpan.html('<span class="' + iconSkin + 'ico"></span>' + wide.curNode.name);
                                 break;

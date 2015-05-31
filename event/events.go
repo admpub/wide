@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/b3log/wide/log"
+	"github.com/b3log/wide/util"
 )
 
 const (
@@ -69,6 +70,8 @@ var UserEventQueues = queues{}
 // Load initializes the event handling.
 func Load() {
 	go func() {
+		defer util.Recover()
+
 		for event := range EventQueue {
 			logger.Debugf("Received a global event [code=%d]", event.Code)
 
@@ -84,9 +87,7 @@ func Load() {
 
 // AddHandler adds the specified handlers to user event queues.
 func (uq *UserEventQueue) AddHandler(handlers ...Handler) {
-	for _, handler := range handlers {
-		uq.Handlers = append(uq.Handlers, handler)
-	}
+	uq.Handlers = append(uq.Handlers, handlers...)
 }
 
 // New initializes a user event queue with the specified wide session id.
@@ -106,6 +107,8 @@ func (ueqs queues) New(sid string) *UserEventQueue {
 	ueqs[sid] = q
 
 	go func() { // start listening
+		defer util.Recover()
+
 		for evt := range q.Queue {
 			logger.Debugf("Session [%s] received an event [%d]", sid, evt.Code)
 
@@ -125,6 +128,8 @@ func (ueqs queues) Close(sid string) {
 	if nil == q {
 		return
 	}
+
+	close(q.Queue)
 
 	delete(ueqs, sid)
 }

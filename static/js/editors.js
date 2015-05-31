@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,7 @@ var editors = {
         }
     },
     close: function () {
-        $(".edit-panel .tabs > div[data-index=" + $(".edit-panel .frame").data("index") + "]").find(".ico-close").click();
+        $('.edit-panel .tabs > div[data-index="' + $('.edit-panel .frame').data('index') + ']').find('.ico-close').click();
     },
     closeOther: function () {
         var currentIndex = $(".edit-panel .frame").data("index");
@@ -43,14 +43,14 @@ var editors = {
         var firstIndex = removeData.splice(0, 1);
         $("#dialogCloseEditor").data("removeData", removeData);
         // 开始关闭
-        $(".edit-panel .tabs > div[data-index=" + firstIndex + "]").find(".ico-close").click();
+        $('.edit-panel .tabs > div[data-index="' + firstIndex + '"]').find(".ico-close").click();
     },
     _removeAllMarker: function () {
         var removeData = $("#dialogCloseEditor").data("removeData");
         if (removeData && removeData.length > 0) {
             var removeIndex = removeData.splice(0, 1);
             $("#dialogCloseEditor").data("removeData", removeData);
-            $(".edit-panel .tabs > div[data-index=" + removeIndex + "] .ico-close").click();
+            $('.edit-panel .tabs > div[data-index="' + removeIndex + '"] .ico-close').click();
         }
         if (wide.curEditor) {
             wide.curEditor.focus();
@@ -60,7 +60,7 @@ var editors = {
         new ZeroClipboard($("#copyFilePath"));
 
         // 关闭、关闭其他、关闭所有
-        $(".edit-panel").on("mousedown", '.tabs > div', function (event) {
+        $(".edit-panel").on("mouseup", '.tabs > div', function (event) {
             event.stopPropagation();
 
             if (event.button === 0) { // 左键
@@ -97,7 +97,7 @@ var editors = {
             "afterInit": function () {
                 $("#dialogCloseEditor button.save").click(function () {
                     var i = $("#dialogCloseEditor").data("index");
-                    wide.fmt(tree.fileTree.getNodeByTId(editors.data[i].id).path, editors.data[i].editor);
+                    wide.fmt(editors.data[i].id, editors.data[i].editor);
                     editors.tabs.del(editors.data[i].id);
                     $("#dialogCloseEditor").dialog("close");
                     editors._removeAllMarker();
@@ -126,12 +126,15 @@ var editors = {
             },
             clickAfter: function (id) {
                 if (id === 'startPage') {
+                    wide.curEditor = undefined;
                     $(".footer .cursor").text('');
+                    wide.refreshOutline();
                     return false;
                 }
 
                 // set tree node selected
-                var node = tree.fileTree.getNodeByTId(id);
+                var tId = tree.getTIdByPath(id);
+                var node = tree.fileTree.getNodeByTId(tId);
                 tree.fileTree.selectNode(node);
                 wide.curNode = node;
 
@@ -145,6 +148,7 @@ var editors = {
                 var cursor = wide.curEditor.getCursor();
                 wide.curEditor.setCursor(cursor);
                 wide.curEditor.focus();
+                wide.refreshOutline();
 
                 $(".footer .cursor").text('|   ' + (cursor.line + 1) + ':' + (cursor.ch + 1) + '   |');
             },
@@ -160,8 +164,8 @@ var editors = {
                             editors._removeAllMarker();
                             return true;
                         } else {
-                            $("#dialogCloseEditor").dialog("open", $(".edit-panel .tabs > div[data-index="
-                                    + editors.data[i].id + "] > span:eq(0)").text());
+                            $("#dialogCloseEditor").dialog("open", $('.edit-panel .tabs > div[data-index="'
+                                    + editors.data[i].id + '"] > span:eq(0)').text());
                             $("#dialogCloseEditor").data("index", i);
                             return false;
                         }
@@ -176,10 +180,6 @@ var editors = {
                     menu.disabled(['close-all']);
                 }
 
-                if (id === 'startPage') { // 当前关闭的 tab 是起始页
-                    return false;
-                }
-
                 // 移除编辑器
                 for (var i = 0, ii = editors.data.length; i < ii; i++) {
                     if (editors.data[i].id === id) {
@@ -189,18 +189,27 @@ var editors = {
                 }
 
                 if (editors.data.length === 0) { // 起始页可能存在，所以用编辑器数据判断
-                    menu.disabled(['save-all', 'build', 'run', 'go-test', 'go-get', 'go-install',
+                    menu.disabled(['save-all', 'build', 'run', 'go-test', 'go-vet', 'go-get', 'go-install',
                         'find', 'find-next', 'find-previous', 'replace', 'replace-all',
                         'format', 'autocomplete', 'jump-to-decl', 'expr-info', 'find-usages', 'toggle-comment',
                         'edit']);
-                }
 
-                if (!nextId) {
-                    // 不存在打开的编辑器
                     // remove selected tree node
                     tree.fileTree.cancelSelectedNode();
                     wide.curNode = undefined;
                     wide.curEditor = undefined;
+                    wide.refreshOutline();
+                    $(".footer .cursor").text('');
+                    return false;
+                }
+
+                if (!nextId) {
+                    // 编辑器区域不存在打开的 Tab
+                    // remove selected tree node
+                    tree.fileTree.cancelSelectedNode();
+                    wide.curNode = undefined;
+                    wide.curEditor = undefined;
+                    wide.refreshOutline();
                     $(".footer .cursor").text('');
                     return false;
                 }
@@ -211,7 +220,8 @@ var editors = {
                 }
 
                 // set tree node selected
-                var node = tree.fileTree.getNodeByTId(nextId);
+                var tId = tree.getTIdByPath(id);
+                var node = tree.fileTree.getNodeByTId(tId);
                 tree.fileTree.selectNode(node);
                 wide.curNode = node;
 
@@ -222,6 +232,7 @@ var editors = {
                     }
                 }
 
+                wide.refreshOutline();
                 var cursor = wide.curEditor.getCursor();
                 $(".footer .cursor").text('|   ' + (cursor.line + 1) + ':' + (cursor.ch + 1) + '   |');
             }
@@ -240,6 +251,10 @@ var editors = {
         this._initClose();
     },
     openStartPage: function () {
+        wide.curEditor = undefined;
+        wide.refreshOutline();
+        $(".footer .cursor").text('');
+
         var dateFormat = function (time, fmt) {
             var date = new Date(time);
             var dateObj = {
@@ -263,12 +278,14 @@ var editors = {
 
         editors.tabs.add({
             id: "startPage",
-            title: '<span title="' + config.label.start_page + '">' + config.label.start_page + '</span>',
+            title: '<span title="' + config.label.start_page
+                    + '"><span class="ico-start font-ico"></span> ' + config.label.start_page + '</span>',
             content: '<div id="startPage"></div>',
             after: function () {
+                $("#startPage").height($('.side-right').height() - $(".bottom-window-group").children(".tabs").height() - 100);
                 $("#startPage").load(config.context + '/start?sid=' + config.wideSessionId);
                 $.ajax({
-                    url: "https://symphony.b3log.org/apis/articles?tags=wide,golang&p=1&size=30",
+                    url: "https://symphony.b3log.org/apis/articles?tags=wide,golang&p=1&size=20",
                     type: "GET",
                     dataType: "jsonp",
                     jsonp: "callback",
@@ -278,10 +295,10 @@ var editors = {
                             return;
                         }
 
-                        // 按 size = 30 取，但只保留最多 10 篇
+                        // 按 size = 20 取，但只保留最多 9 篇
                         var length = articles.length;
-                        if (length > 10) {
-                            length = 10;
+                        if (length > 9) {
+                            length = 9;
                         }
 
                         var listHTML = "<ul><li class='title'>" + config.label.community + "</li>";
@@ -291,7 +308,7 @@ var editors = {
                                     + "<a target='_blank' href='http://symphony.b3log.org"
                                     + article.articlePermalink + "'>"
                                     + article.articleTitle + "</a>&nbsp; <span class='date'>"
-                                    + dateFormat(article.articleCreateTime, 'yyyy-MM-dd hh:mm');
+                                    + dateFormat(article.articleCreateTime, 'yyyy-MM-dd');
                             +"</span></li>";
                         }
 
@@ -353,15 +370,27 @@ var editors = {
 
                             switch (autocompleteArray[i].class) {
                                 case "type":
+                                    displayText = '<span class="fn-clear"><span class="ico-type ico"></span>'// + autocompleteArray[i].class 
+                                            + '<b>' + autocompleteArray[i].name + '</b>    '
+                                            + autocompleteArray[i].type + '</span>';
+                                    break;
                                 case "const":
+                                    displayText = '<span class="fn-clear"><span class="ico-const ico"></span>'// + autocompleteArray[i].class 
+                                            + '<b>' + autocompleteArray[i].name + '</b>    '
+                                            + autocompleteArray[i].type + '</span>';
+                                    break;
                                 case "var":
+                                    displayText = '<span class="fn-clear"><span class="ico-var ico"></span>'// + autocompleteArray[i].class 
+                                            + '<b>' + autocompleteArray[i].name + '</b>    '
+                                            + autocompleteArray[i].type + '</span>';
+                                    break;
                                 case "package":
-                                    displayText = '<span class="fn-clear">'// + autocompleteArray[i].class 
-                                            + '<b class="fn-left">' + autocompleteArray[i].name + '</b>    '
+                                    displayText = '<span class="fn-clear"><span class="ico-package ico"></span>'// + autocompleteArray[i].class 
+                                            + '<b>' + autocompleteArray[i].name + '</b>    '
                                             + autocompleteArray[i].type + '</span>';
                                     break;
                                 case "func":
-                                    displayText = '<span>'// + autocompleteArray[i].class 
+                                    displayText = '<span><span class="ico-func ico"></span>'// + autocompleteArray[i].class 
                                             + '<b>' + autocompleteArray[i].name + '</b>'
                                             + autocompleteArray[i].type.substring(4) + '</span>';
                                     text += '()';
@@ -388,8 +417,14 @@ var editors = {
         });
 
         CodeMirror.commands.autocompleteAfterDot = function (cm) {
+            var mode = cm.getMode();
+            if (mode && "go" !== mode.name) {
+                return CodeMirror.Pass;
+            }
+
             var token = cm.getTokenAt(cm.getCursor());
-            if ("comment" === token.type) {
+
+            if ("comment" === token.type || "string" === token.type) {
                 return CodeMirror.Pass;
             }
 
@@ -620,20 +655,34 @@ var editors = {
         };
     },
     appendSearch: function (data, type, key) {
-        var searcHTML = '<ul class="list">';
+        var searcHTML = '<ul class="list">',
+                key = key.toLowerCase();
 
         for (var i = 0, ii = data.length; i < ii; i++) {
-            var contents = data[i].contents[0],
-                    index = contents.indexOf(key);
-            contents = contents.substring(0, index)
-                    + '<b>' + key + '</b>'
-                    + contents.substring(index + key.length);
+            var contents = '',
+                    lowerCaseContents = data[i].contents[0].toLowerCase(),
+                    matches = lowerCaseContents.split(key),
+                    startIndex = 0,
+                    endIndex = 0;
+            for (var j = 0, max = matches.length; j < max; j++) {
+                startIndex = endIndex + matches[j].length;
+                endIndex = startIndex + key.length;
+                var keyWord = data[i].contents[0].substring(startIndex, endIndex);
+                if (keyWord !== '') {
+                    keyWord = '<b>' + keyWord + '</b>';
+                }
+                contents += data[i].contents[0].substring(startIndex - matches[j].length, startIndex) + keyWord;
+            }
 
             searcHTML += '<li title="' + data[i].path + '">'
                     + contents + "&nbsp;&nbsp;&nbsp;&nbsp;<span class='ft-small'>" + data[i].path
                     + '<i class="position" data-line="'
                     + data[i].line + '" data-ch="' + data[i].ch + '"> (' + data[i].line + ':'
                     + data[i].ch + ')</i></span></li>';
+        }
+
+        if (data.length === 0) {
+            searcHTML += '<li>' + config.label.search_no_match + '</li>';
         }
         searcHTML += '</ul>';
 
@@ -696,7 +745,7 @@ var editors = {
     },
     // 新建一个编辑器 Tab，如果已经存在 Tab 则切换到该 Tab.
     newEditor: function (data, cursor) {
-        var id = wide.curNode.tId;
+        var id = wide.curNode.id;
 
         editors.tabs.add({
             id: id,
@@ -705,7 +754,7 @@ var editors = {
             content: '<textarea id="editor' + id + '"></textarea>'
         });
 
-        menu.undisabled(['save-all', 'close-all', 'build', 'run', 'go-test', 'go-get', 'go-install',
+        menu.undisabled(['save-all', 'close-all', 'build', 'run', 'go-test', 'go-vet', 'go-get', 'go-install',
             'find', 'find-next', 'find-previous', 'replace', 'replace-all',
             'format', 'autocomplete', 'jump-to-decl', 'expr-info', 'find-usages', 'toggle-comment',
             'edit']);
@@ -727,6 +776,7 @@ var editors = {
             foldGutter: true,
             cursorHeight: 1,
             path: data.path,
+            profile: 'xhtml', // define Emmet output profile
             extraKeys: {
                 "Ctrl-\\": "autocompleteAnyWord",
                 ".": "autocompleteAfterDot",
@@ -765,6 +815,10 @@ var editors = {
             }
         });
 
+        if ("text/html" === data.mode) {
+            emmetCodeMirror(editor);
+        }
+
         editor.on('cursorActivity', function (cm) {
             $(".edit-exprinfo").remove();
             var cursor = cm.getCursor();
@@ -781,8 +835,7 @@ var editors = {
         });
 
         editor.on('changes', function (cm) {
-            if (cm.doc.isClean()) {
-                // 没有修改过
+            if (cm.doc.isClean()) { // no modification
                 $(".edit-panel .tabs > div").each(function () {
                     var $span = $(this).find("span:eq(0)");
                     if ($span.attr("title") === cm.options.path) {
@@ -790,7 +843,6 @@ var editors = {
                     }
                 });
             } else {
-                // 修改过
                 $(".edit-panel .tabs > div").each(function () {
                     var $span = $(this).find("span:eq(0)");
                     if ($span.attr("title") === cm.options.path) {
@@ -803,6 +855,10 @@ var editors = {
         editor.setSize('100%', $(".edit-panel").height() - $(".edit-panel .tabs").height());
         editor.setOption("mode", data.mode);
         editor.setOption("gutters", ["CodeMirror-lint-markers", "CodeMirror-foldgutter"]);
+
+        if ("wide" !== config.keymap) {
+            editor.setOption("keyMap", config.keymap);
+        }
 
         if ("text/x-go" === data.mode || "application/json" === data.mode) {
             editor.setOption("lint", true);

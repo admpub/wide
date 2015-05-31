@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,12 +22,10 @@ var menu = {
         this._initShare();
 
         // 点击子菜单后消失
-        $(".frame li").click(function () {
-            $(this).closest(".frame").hide();
-            $(".menu > ul > li > a, .menu > ul> li > span").removeClass("selected");
+        $(".menu .frame li").click(function () {
+            $(".menu > ul > li").unbind().removeClass("selected");
+            menu.subMenu();
         });
-
-
     },
     _initShare: function () {
         $(".menu .ico-share").hover(function () {
@@ -36,20 +34,23 @@ var menu = {
 
         $(".share-panel .font-ico").click(function () {
             var key = $(this).attr('class').split('-')[2];
-            var title = encodeURIComponent($('title').text() + '. \n' + $('meta[name=description]').attr('content')),
-                    url = "https://wide.b3log.org",
-                    pic = 'https://wide.b3log.org/static/images/wide-logo.png';
+            var url = "https://wide.b3log.org", pic = 'https://wide.b3log.org/static/images/wide-logo.png';
             var urls = {};
-            urls.email = "mailto:?subject=" + $('title').text() 
+            urls.email = "mailto:?subject=" + $('title').text()
                     + "&body=" + $('meta[name=description]').attr('content') + ' ' + url;
-            urls.twitter = "https://twitter.com/intent/tweet?status=" 
-                    + $('meta[name=description]').attr('content') + " " + url;
+
+            var twitterShare = encodeURIComponent($('meta[name=description]').attr('content') + " " + url + " #golang");
+            urls.twitter = "https://twitter.com/intent/tweet?status=" + twitterShare;
+
             urls.facebook = "https://www.facebook.com/sharer/sharer.php?u=" + url;
             urls.googleplus = "https://plus.google.com/share?url=" + url;
-            urls.weibo = "http://v.t.sina.com.cn/share/share.php?title=" +
-                    title + "&url=" + url + "&pic=" + pic;
+
+            var title = encodeURIComponent($('title').text() + '. \n' + $('meta[name=description]').attr('content')
+                    + " #golang#");
+            urls.weibo = "http://v.t.sina.com.cn/share/share.php?title=" + title + "&url=" + url + "&pic=" + pic;
             urls.tencent = "http://share.v.t.qq.com/index.php?c=share&a=index&title=" + title +
                     "&url=" + url + "&pic=" + pic;
+
             window.open(urls[key], "_blank", "top=100,left=200,width=648,height=618");
         });
     },
@@ -57,8 +58,6 @@ var menu = {
         $("#dialogAbout").load(config.context + '/about', function () {
             $("#dialogAbout").dialog({
                 "modal": true,
-                "height": 460,
-                "width": 800,
                 "title": config.label.about,
                 "hideFooter": true,
                 "afterOpen": function () {
@@ -93,18 +92,24 @@ var menu = {
     },
     // 焦点不在菜单上时需点击展开子菜单，否则为鼠标移动展开
     subMenu: function () {
-        $(".menu > ul > li > a, .menu > ul> li > span").click(function () {
+        $(".menu > ul > li").click(function (event) {
+            if ($(event.target).closest(".frame").length === 1) {
+                return;
+            }
             var $it = $(this);
-            $it.next().show();
-            $(".menu > ul > li > a, .menu > ul> li > span").removeClass("selected");
+            $it.find('.frame').show();
+            $(".menu > ul > li").removeClass("selected");
             $(this).addClass("selected");
 
-            $(".menu > ul > li > a, .menu > ul> li > span").unbind();
+            $(".menu > ul > li").unbind();
 
-            $(".menu > ul > li > a, .menu > ul> li > span").mouseover(function () {
-                $(".frame").hide();
-                $(this).next().show();
-                $(".menu > ul > li > a, .menu > ul> li > span").removeClass("selected");
+            $(".menu > ul > li").mouseover(function () {
+                if ($(event.target).closest(".frame").length === 1) {
+                    return;
+                }
+                $(".menu .frame").hide();
+                $(this).find('.frame').show();
+                $(".menu > ul > li").removeClass("selected");
                 $(this).addClass("selected");
             });
         });
@@ -117,7 +122,7 @@ var menu = {
             return false;
         }
         for (var i = 0, ii = editors.data.length; i < ii; i++) {
-            var path = tree.fileTree.getNodeByTId(editors.data[i].id).path;
+            var path = editors.data[i].id;
             var editor = editors.data[i].editor;
 
             if ("text/x-go" === editor.getOption("mode")) {
@@ -215,7 +220,7 @@ var menu = {
             }
         });
     },
-    // 测试.
+    // go test.
     test: function () {
         menu.saveAllFiles();
 
@@ -224,7 +229,7 @@ var menu = {
             return false;
         }
 
-        if ($(".menu li.test").hasClass("disabled")) {
+        if ($(".menu li.go-test").hasClass("disabled")) {
             return false;
         }
 
@@ -243,8 +248,8 @@ var menu = {
             }
         });
     },
-    // Build & Run.
-    run: function () {
+    // go vet.
+    govet: function () {
         menu.saveAllFiles();
 
         var currentPath = editors.getCurrentPath();
@@ -252,12 +257,40 @@ var menu = {
             return false;
         }
 
-        if ($(".menu li.run").hasClass("disabled")) {
+        if ($(".menu li.go-vet").hasClass("disabled")) {
             return false;
         }
 
+        var request = newWideRequest();
+        request.file = currentPath;
+
+        $.ajax({
+            type: 'POST',
+            url: config.context + '/go/vet',
+            data: JSON.stringify(request),
+            dataType: "json",
+            beforeSend: function (data) {
+                bottomGroup.resetOutput();
+            },
+            success: function (data) {
+            }
+        });
+    },
+    // Build & Run.
+    run: function () {
+        menu.saveAllFiles();
+
         if ($("#buildRun").hasClass("ico-stop")) {
             wide.stop();
+            return false;
+        }
+
+        var currentPath = editors.getCurrentPath();
+        if (!currentPath) {
+            return false;
+        }
+
+        if ($(".menu li.run").hasClass("disabled")) {
             return false;
         }
 
@@ -296,7 +329,7 @@ var menu = {
         var request = newWideRequest();
         request.file = currentPath;
         request.code = wide.curEditor.getValue();
-        request.nextCmd = ""; // 只构建，无下一步操作
+        request.nextCmd = ""; // build only, no following operation
 
         $.ajax({
             type: 'POST',
@@ -342,7 +375,7 @@ var menu = {
                     for (var i = 0, max = emptys.length; i < max; i++) {
                         var tabIndex = emptys[i].closest('div').data("index"),
                                 text = $.trim(emptys[i].parent().text());
-                        emptysTip += '[' + $("#dialogPreference .tabs > div[data-index=" + tabIndex + "]").text()
+                        emptysTip += '[' + $('#dialogPreference .tabs > div[data-index="' + tabIndex + '"]').text()
                                 + '] -> [' + text.substr(0, text.length - 1)
                                 + ']: ' + config.label.no_empty + "<br/>";
                     }
@@ -393,7 +426,8 @@ var menu = {
                             $editorFontSize = $dialogPreference.find("input[name=editorFontSize]"),
                             $editorLineHeight = $dialogPreference.find("input[name=editorLineHeight]"),
                             $editorTheme = $dialogPreference.find("select[name=editorTheme]"),
-                            $editorTabSize = $dialogPreference.find("input[name=editorTabSize]");
+                            $editorTabSize = $dialogPreference.find("input[name=editorTabSize]"),
+                            $keymap = $dialogPreference.find("select[name=keymap]");
 
                     $.extend(request, {
                         "fontFamily": $fontFamily.val(),
@@ -408,8 +442,13 @@ var menu = {
                         "editorFontSize": $editorFontSize.val(),
                         "editorLineHeight": $editorLineHeight.val(),
                         "editorTheme": $editorTheme.val(),
-                        "editorTabSize": $editorTabSize.val()
+                        "editorTabSize": $editorTabSize.val(),
+                        "keymap": $keymap.val()
                     });
+                    
+                    if (config.keymap !== $keymap.val()) {
+                        window.location.reload();
+                    }
 
                     $.ajax({
                         type: 'POST',
@@ -433,6 +472,10 @@ var menu = {
                             $editorLineHeight.data("value", $editorLineHeight.val());
                             $editorTheme.data("value", $editorTheme.val());
                             $editorTabSize.data("value", $editorTabSize.val());
+                            $keymap.data("value", $keymap.val());
+                            
+                            // update the config
+                            config.keymap = $keymap.val();
 
                             var $okBtn = $("#dialogPreference").closest(".dialog-main").find(".dialog-footer > button:eq(0)");
                             $okBtn.prop("disabled", true);

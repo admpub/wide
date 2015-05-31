@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,5 +100,13 @@ func (*mygo) GetExecutableInGOBIN(executable string) string {
 	}
 
 	// $GOBIN/executable
-	return os.Getenv("GOBIN") + pathSeparator + executable
+	gobin := os.Getenv("GOBIN")
+	if "" != gobin {
+		ret := gobin + pathSeparator + executable
+		if File.IsExist(ret) {
+			return ret
+		}
+	}
+
+	return "./" + executable
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ func event2Notification(e *event.Event) {
 
 	httpSession, _ := session.HTTPSession.Get(wsChannel.Request, "wide-session")
 	username := httpSession.Values["username"].(string)
-	locale := conf.Wide.GetUser(username).Locale
+	locale := conf.GetUser(username).Locale
 
 	var notification *Notification
 

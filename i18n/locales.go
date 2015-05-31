@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ func load(localeStr string) {
 	Locales[localeStr] = l
 }
 
-// Get gets message with the specified locale and key.
+// Get gets a message with the specified locale and key.
 func Get(locale, key string) interface{} {
 	return Locales[locale].Langs[key]
 }

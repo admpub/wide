@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,8 +24,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/b3log/wide/conf"
 	"github.com/b3log/wide/i18n"
@@ -35,10 +37,11 @@ import (
 const (
 	// TODO: i18n
 
-	userExists      = "user exists"
-	emailExists     = "email exists"
-	userCreated     = "user created"
-	userCreateError = "user create error"
+	userExists       = "user exists"
+	emailExists      = "email exists"
+	userCreated      = "user created"
+	userCreateError  = "user create error"
+	notAllowRegister = "not allow register"
 )
 
 // Exclusive lock for adding user.
@@ -61,7 +64,7 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 	httpSession.Save(r, w)
 
 	username := httpSession.Values["username"].(string)
-	user := conf.Wide.GetUser(username)
+	user := conf.GetUser(username)
 
 	if "GET" == r.Method {
 		model := map[string]interface{}{"conf": conf.Wide, "i18n": i18n.GetAll(user.Locale), "user": user,
@@ -93,6 +96,7 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 		FontFamily       string
 		FontSize         string
 		GoFmt            string
+		Keymap           string
 		Workspace        string
 		Username         string
 		Password         string
@@ -116,8 +120,12 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 	user.FontFamily = args.FontFamily
 	user.FontSize = args.FontSize
 	user.GoFormat = args.GoFmt
-	user.Workspace = args.Workspace
-	user.Password = args.Password
+	user.Keymap = args.Keymap
+	// XXX: disallow change workspace at present
+	// user.Workspace = args.Workspace
+	if user.Password != args.Password {
+		user.Password = conf.Salt(args.Password, user.Salt)
+	}
 	user.Email = args.Email
 
 	hash := md5.New()
@@ -134,7 +142,11 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 
 	conf.UpdateCustomizedConf(username)
 
-	succ = conf.Save()
+	now := time.Now().UnixNano()
+	user.Lived = now
+	user.Updated = now
+
+	succ = user.Save()
 }
 
 // LoginHandler handles request of user login.
@@ -143,7 +155,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		// show the login page
 
 		model := map[string]interface{}{"conf": conf.Wide, "i18n": i18n.GetAll(conf.Wide.Locale),
-			"locale": conf.Wide.Locale, "ver": conf.WideVersion}
+			"locale": conf.Wide.Locale, "ver": conf.WideVersion, "year": time.Now().Year()}
 
 		t, err := template.ParseFiles("views/login.html")
 
@@ -170,16 +182,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Password string
 	}{}
 
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
-		logger.Error("login error: ", err)
-		succ = false
-
-		return
-	}
+	args.Username = r.FormValue("username")
+	args.Password = r.FormValue("password")
 
 	succ = false
-	for _, user := range conf.Wide.Users {
-		if user.Name == args.Username && user.Password == args.Password {
+	for _, user := range conf.Users {
+		if user.Name == args.Username && user.Password == conf.Salt(args.Password, user.Salt) {
 			succ = true
 
 			break
@@ -214,17 +222,17 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	httpSession.Save(r, w)
 }
 
-// SignUpUser handles request of registering user.
-func SignUpUser(w http.ResponseWriter, r *http.Request) {
+// SignUpUserHandler handles request of registering user.
+func SignUpUserHandler(w http.ResponseWriter, r *http.Request) {
 	if "GET" == r.Method {
 		// show the user sign up page
 
-		firstUserWorkspace := conf.Wide.GetUserWorkspace(conf.Wide.Users[0].Name)
+		firstUserWorkspace := conf.GetUserWorkspace(conf.Users[0].Name)
 		dir := filepath.Dir(firstUserWorkspace)
 
 		model := map[string]interface{}{"conf": conf.Wide, "i18n": i18n.GetAll(conf.Wide.Locale),
 			"locale": conf.Wide.Locale, "ver": conf.WideVersion, "dir": dir,
-			"pathSeparator": conf.PathSeparator}
+			"pathSeparator": conf.PathSeparator, "year": time.Now().Year()}
 
 		t, err := template.ParseFiles("views/sign_up.html")
 
@@ -263,37 +271,105 @@ func SignUpUser(w http.ResponseWriter, r *http.Request) {
 	if userCreated != msg {
 		succ = false
 		data["msg"] = msg
+
+		return
 	}
+
+	// create a HTTP session
+	httpSession, _ := HTTPSession.Get(r, "wide-session")
+	httpSession.Values["username"] = username
+	httpSession.Values["id"] = strconv.Itoa(rand.Int())
+	httpSession.Options.MaxAge = conf.Wide.HTTPSessionMaxAge
+	if "" != conf.Wide.Context {
+		httpSession.Options.Path = conf.Wide.Context
+	}
+	httpSession.Save(r, w)
+}
+
+// FixedTimeSave saves online users' configurations periodically (1 minute).
+//
+// Main goal of this function is to save user session content, for restoring session content while user open Wide next time.
+func FixedTimeSave() {
+	go func() {
+		defer util.Recover()
+
+		for _ = range time.Tick(time.Minute) {
+			users := getOnlineUsers()
+
+			for _, u := range users {
+				if u.Save() {
+					logger.Tracef("Saved online user [%s]'s configurations", u.Name)
+				}
+			}
+		}
+	}()
+}
+
+func getOnlineUsers() []*conf.User {
+	ret := []*conf.User{}
+
+	usernames := map[string]string{} // distinct username
+	for _, s := range WideSessions {
+		usernames[s.Username] = s.Username
+	}
+
+	for _, username := range usernames {
+		u := conf.GetUser(username)
+
+		if "playground" == username { // user [playground] is a reserved mock user
+			continue
+		}
+
+		if nil == u {
+			logger.Warnf("Not found user [%s]", username)
+
+			continue
+		}
+
+		ret = append(ret, u)
+	}
+
+	return ret
 }
 
 // addUser add a user with the specified username, password and email.
 //
 //  1. create the user's workspace
-//  2. generate 'Hello, 世界' demo code in the workspace
+//  2. generate 'Hello, 世界' demo code in the workspace (a console version and a HTTP version)
 //  3. update the user customized configurations, such as style.css
 //  4. serve files of the user's workspace via HTTP
+//
+// Note: user [playground] is a reserved mock user
 func addUser(username, password, email string) string {
+	if !conf.Wide.AllowRegister {
+		return notAllowRegister
+	}
+
+	if "playground" == username {
+		return userExists
+	}
+
 	addUserMutex.Lock()
 	defer addUserMutex.Unlock()
 
-	for _, user := range conf.Wide.Users {
-		if user.Name == username {
+	for _, user := range conf.Users {
+		if strings.ToLower(user.Name) == strings.ToLower(username) {
 			return userExists
 		}
 
-		if user.Email == email {
+		if strings.ToLower(user.Email) == strings.ToLower(email) {
 			return emailExists
 		}
 	}
 
-	firstUserWorkspace := conf.Wide.GetUserWorkspace(conf.Wide.Users[0].Name)
+	firstUserWorkspace := conf.GetUserWorkspace(conf.Users[0].Name)
 	dir := filepath.Dir(firstUserWorkspace)
 	workspace := filepath.Join(dir, username)
 
 	newUser := conf.NewUser(username, password, email, workspace)
-	conf.Wide.Users = append(conf.Wide.Users, newUser)
+	conf.Users = append(conf.Users, newUser)
 
-	if !conf.Save() {
+	if !newUser.Save() {
 		return userCreateError
 	}
 
@@ -309,8 +385,15 @@ func addUser(username, password, email string) string {
 	return userCreated
 }
 
-// helloWorld generates the 'Hello, 世界' source code in workspace/src/hello/main.go.
+// helloWorld generates the 'Hello, 世界' source code.
+//  1. src/hello/main.go
+//  2. src/web/main.go
 func helloWorld(workspace string) {
+	consoleHello(workspace)
+	webHello(workspace)
+}
+
+func consoleHello(workspace string) {
 	dir := workspace + conf.PathSeparator + "src" + conf.PathSeparator + "hello"
 	if err := os.MkdirAll(dir, 0755); nil != err {
 		logger.Error(err)
@@ -322,17 +405,63 @@ func helloWorld(workspace string) {
 	if nil != err {
 		logger.Error(err)
 
-		os.Exit(-1)
+		return
 	}
 
-	fout.WriteString(`package main
+	fout.WriteString(conf.HelloWorld)
 
-import "fmt"
+	fout.Close()
+}
+
+func webHello(workspace string) {
+	dir := workspace + conf.PathSeparator + "src" + conf.PathSeparator + "web"
+	if err := os.MkdirAll(dir, 0755); nil != err {
+		logger.Error(err)
+
+		return
+	}
+
+	fout, err := os.Create(dir + conf.PathSeparator + "main.go")
+	if nil != err {
+		logger.Error(err)
+
+		return
+	}
+
+	code := `package main
+
+import (
+	"fmt"
+	"math/rand"
+	"net/http"
+	"strconv"
+	"time"
+)
 
 func main() {
-	fmt.Println("Hello, 世界")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, 世界"))
+	})
+
+	port := getPort()
+
+	// you may need to change the address
+	fmt.Println("Open http://wide.b3log.org:" + port + " in your browser to see the result") 
+
+	if err := http.ListenAndServe(":"+port, nil); nil != err {
+		fmt.Println(err)
+	}
 }
-`)
+
+func getPort() string {
+	rand.Seed(time.Now().UnixNano())
+
+	return strconv.Itoa(7000 + rand.Intn(8000-7000))
+}
+
+`
+
+	fout.WriteString(code)
 
 	fout.Close()
 }

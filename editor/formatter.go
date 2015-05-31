@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt := conf.Wide.GetGoFmt(username)
+	fmt := conf.GetGoFmt(username)
 
 	argv := []string{filePath}
 	cmd := exec.Command(fmt, argv...)

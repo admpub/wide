@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +18,58 @@ var wide = {
     curNode: undefined,
     curEditor: undefined,
     curProcessId: undefined, // curent running process id (pid)
+    refreshOutline: function () {
+        if (!wide.curEditor ||
+                (wide.curEditor && wide.curEditor.doc.getMode().name !== "go")) {
+            $("#outline").html('');
+            return false;
+        }
+
+        var request = newWideRequest();
+        request.code = wide.curEditor.getValue();
+
+        $.ajax({
+            type: 'POST',
+            async: false,
+            url: config.context + '/outline',
+            data: JSON.stringify(request),
+            dataType: "json",
+            success: function (data) {
+                if (!data.succ) {
+                    return;
+                }
+
+                var outlineHTML = '<ul class="list">',
+                        decls = ['constDecls', 'varDecls', 'funcDecls',
+                            'structDecls', 'interfaceDecls', 'typeDecls'];
+
+                for (var i = 0, max = decls.length; i < max; i++) {
+                    var key = decls[i];
+                    for (var j = 0, maxj = data[key].length; j < maxj; j++) {
+                        var obj = data[key][j];
+                        outlineHTML += '<li data-ch="' + obj.Ch + '" data-line="'
+                                + obj.Line + '"><span class="ico ico-'
+                                + key.replace('Decls', '') + '"></span> ' + obj.Name + '</li>';
+                    }
+                }
+                $("#outline").html(outlineHTML + '</ul>');
+
+                $("#outline li").dblclick(function () {
+                    var $it = $(this),
+                            cursor = CodeMirror.Pos($it.data('line'), $it.data("ch"));
+
+                    var editor = wide.curEditor;
+                    editor.setCursor(cursor);
+
+                    var half = Math.floor(editor.getScrollInfo().clientHeight / editor.defaultTextHeight() / 2);
+                    var cursorCoords = editor.cursorCoords({line: cursor.line - half, ch: 0}, "local");
+                    editor.scrollTo(0, cursorCoords.top);
+
+                    editor.focus();
+                });
+            }
+        });
+    },
     _initDialog: function () {
         $(".dialog-prompt > input").keyup(function (event) {
             var $okBtn = $(this).closest(".dialog-main").find(".dialog-footer > button:eq(0)");
@@ -34,7 +86,7 @@ var wide = {
 
         $("#dialogAlert").dialog({
             "modal": true,
-            "height": 26,
+            "height": 36,
             "width": 260,
             "title": config.label.tip,
             "hiddenOk": true,
@@ -46,7 +98,7 @@ var wide = {
 
         $("#dialogRemoveConfirm").dialog({
             "modal": true,
-            "height": 26,
+            "height": 36,
             "width": 260,
             "title": config.label.delete,
             "okText": config.label.delete,
@@ -78,15 +130,15 @@ var wide = {
                         if (!tree.isDir()) {
                             // 是文件的话，查看 editor 中是否被打开，如打开则移除
                             for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                                if (editors.data[i].id === wide.curNode.tId) {
-                                    $(".edit-panel .tabs > div[data-index=" + wide.curNode.tId + "]").find(".ico-close").click();
+                                if (editors.data[i].id === wide.curNode.path) {
+                                    $('.edit-panel .tabs > div[data-index="' + wide.curNode.path + '"]').find(".ico-close").click();
                                     break;
                                 }
                             }
                         } else {
                             for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                                if (tree.isParents(editors.data[i].id, wide.curNode.tId)) {
-                                    $(".edit-panel .tabs > div[data-index=" + editors.data[i].id + "]").find(".ico-close").click();
+                                if (tree.isParents(editors.data[i].id, wide.curNode.path)) {
+                                    $('.edit-panel .tabs > div[data-index="' + editors.data[i].id + '"]').find(".ico-close").click();
                                     i--;
                                     ii--;
                                 }
@@ -129,6 +181,8 @@ var wide = {
                             return false;
                         }
 
+                        var mode = CodeMirror.findModeByFileName(name);
+
                         $("#dialogNewFilePrompt").dialog("close");
                         var iconSkin = wide.getClassBySuffix(name.split(".")[1]);
 
@@ -136,7 +190,7 @@ var wide = {
                                 "name": name,
                                 "iconSkin": iconSkin,
                                 "path": request.path,
-                                "mode": data.mode,
+                                "mode": mode,
                                 "removable": true,
                                 "creatable": true
                             }]);
@@ -184,7 +238,8 @@ var wide = {
                                 "iconSkin": "ico-ztree-dir ",
                                 "path": request.path,
                                 "removable": true,
-                                "creatable": true
+                                "creatable": true,
+                                "isParent": true
                             }]);
                     }
                 });
@@ -204,7 +259,7 @@ var wide = {
                     tree.openFile(tree.fileTree.getNodeByTId(tId));
                     tree.fileTree.selectNode(wide.curNode);
                     $("#dialogGoFilePrompt").dialog("close");
-                     wide.curEditor.focus();
+                    wide.curEditor.focus();
                 });
 
                 $("#dialogGoFilePrompt").on("click", "li", function () {
@@ -307,6 +362,36 @@ var wide = {
                 editor.focus();
             }
         });
+
+        $("#dialogGitClonePrompt").dialog({
+            "modal": true,
+            "height": 52,
+            "width": 360,
+            "title": config.label.git_clone,
+            "okText": config.label.confirm,
+            "cancelText": config.label.cancel,
+            "afterOpen": function () {
+                $("#dialogGitClonePrompt > input").val('').focus();
+                $("#dialogGitClonePrompt").closest(".dialog-main").find(".dialog-footer > button:eq(0)").prop("disabled", true);
+            },
+            "ok": function () {
+                $("#dialogGitClonePrompt").dialog("close");
+
+                var request = newWideRequest();
+                request.path = wide.curNode.path;
+                request.repository = $("#dialogGitClonePrompt > input").val();
+
+                $.ajax({
+                    type: 'POST',
+                    url: config.context + '/git/clone',
+                    data: JSON.stringify(request),
+                    dataType: "json",
+                    success: function (data) {
+
+                    }
+                });
+            }
+        });
     },
     _initLayout: function () {
         var mainH = $(window).height() - $(".menu").height() - $(".footer").height() - 2,
@@ -321,6 +406,14 @@ var wide = {
         } else {
             $(".bottom-window-group > .tabs-panel > div > div").height(bottomH - $bottomGroup.children(".tabs").height());
         }
+
+        if ($(".side-right").hasClass("side-right-max")) {
+            $(".side-right > .tabs-panel > div").height(mainH - $bottomGroup.children(".tabs").height());
+        } else {
+            $(".side-right > .tabs-panel > div").height($('.side-right').height() - $bottomGroup.children(".tabs").height());
+        }
+
+        $("#startPage").height($('.side-right').height() - $bottomGroup.children(".tabs").height() - 100);
     },
     _initWS: function () {
         var outputWS = new ReconnectingWebSocket(config.channel + '/output/ws?sid=' + config.wideSessionId);
@@ -350,16 +443,19 @@ var wide = {
 
             switch (data.cmd) {
                 case 'run':
-                    if (!wide.curProcessId) { // output first time
-                        bottomGroup.fillOutput($('.bottom-window-group .output > div').html() + '<pre>' + data.output + '</pre>');
-                    } else { // the following outputs
-                        bottomGroup.fillOutput($('.bottom-window-group .output > div').html().replace(/<\/pre>$/g, data.output + '</pre>'));
+                    var content = $('.bottom-window-group .output > div').html();
+                    if (!wide.curProcessId || '' === content) {
+                        bottomGroup.fillOutput(content + '<pre>' + data.output + '</pre>');
+                    } else {
+                        bottomGroup.fillOutput(content.replace(/<\/pre>$/g, data.output + '</pre>'));
                     }
 
                     wide.curProcessId = data.pid;
 
                     break;
                 case 'run-done':
+                    bottomGroup.fillOutput($('.bottom-window-group .output > div').html().replace(/<\/pre>$/g, data.output + '</pre>'));
+
                     wide.curProcessId = undefined;
                     $("#buildRun").removeClass("ico-stop")
                             .addClass("ico-buildrun").attr("title", config.label.build_n_run);
@@ -367,15 +463,23 @@ var wide = {
                     break;
                 case 'start-build':
                 case 'start-test':
+                case 'start-vet':
                 case 'start-install':
                 case 'start-get':
+                case 'start-git_clone':
                     bottomGroup.fillOutput(data.output);
 
                     break;
                 case 'go test':
+                case 'go vet':
                 case 'go install':
                 case 'go get':
                     bottomGroup.fillOutput($('.bottom-window-group .output > div').html() + data.output);
+
+                    break;
+                case 'git clone':
+                    bottomGroup.fillOutput($('.bottom-window-group .output > div').html() + data.output);
+                    tree.fileTree.reAsyncChildNodes(wide.curNode, "refresh", false);
 
                     break;
                 case 'build':
@@ -425,18 +529,16 @@ var wide = {
         this._initWS();
 
         // 点击隐藏弹出层
-        $("body").bind("mousedown", function (event) {
-            if (!(event.target.id === "dirRMenu" || $(event.target).closest("#dirRMenu").length > 0)) {
-                $("#dirRMenu").hide();
+        $("body").bind("mouseup", function (event) {
+            // MAC 右键文件树失效
+            if (event.which === 3) {
+                return false;
             }
 
-            if (!(event.target.id === "fileRMenu" || $(event.target).closest("#fileRMenu").length > 0)) {
-                $("#fileRMenu").hide();
-            }
+            $(".frame").hide();
 
-            if (!($(event.target).closest(".frame").length > 0 || event.target.className === "frame")) {
-                $(".frame").hide();
-                $(".menu > ul > li > a, .menu > ul> li > span").unbind("mouseover").removeClass("selected");
+            if (!($(event.target).closest(".frame").length === 1 || event.target.className === "frame")) {
+                $(".menu > ul > li").unbind().removeClass("selected");
                 menu.subMenu();
             }
         });
@@ -464,7 +566,6 @@ var wide = {
             for (var i = 0, ii = editorDatas.length; i < ii; i++) {
                 editorDatas[i].editor.setSize("100%", height);
             }
-
         });
     },
     _save: function (path, editor) {
@@ -483,7 +584,6 @@ var wide = {
             dataType: "json",
             success: function (data) {
                 // reset the save state
-
                 editor.doc.markClean();
                 $(".edit-panel .tabs > div").each(function () {
                     var $span = $(this).find("span:eq(0)");
@@ -507,6 +607,26 @@ var wide = {
 
         if ("text/x-go" === editor.getOption("mode")) {
             wide.gofmt(path, wide.curEditor); // go fmt will save
+
+            // build the file at once
+            var request = newWideRequest();
+            request.file = path;
+            request.code = editor.getValue();
+            request.nextCmd = ""; // build only, no following operation
+            $.ajax({
+                type: 'POST',
+                url: config.context + '/build',
+                data: JSON.stringify(request),
+                dataType: "json",
+                beforeSend: function (data) {
+                    bottomGroup.resetOutput();
+                },
+                success: function (data) {
+                }
+            });
+
+            // refresh outline
+            wide.refreshOutline();
 
             return;
         }

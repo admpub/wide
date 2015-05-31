@@ -1,4 +1,4 @@
-// Copyright (c) 2014, B3log
+// Copyright (c) 2014-2015, b3log.org
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 
 		offset := getCursorOffset(code, line, ch)
 
-		// logger.Debugf("offset: %d", offset)
+		logger.Tracef("offset: %d", offset)
 
 		gocode := util.Go.GetExecutableInGOBIN("gocode")
 		argv := []string{"-f=json", "autocomplete", strconv.Itoa(offset)}
@@ -145,9 +145,9 @@ func AutocompleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	offset := getCursorOffset(code, line, ch)
 
-	// logger.Infof("offset: %d", offset)
+	logger.Tracef("offset: %d", offset)
 
-	userWorkspace := conf.Wide.GetUserWorkspace(username)
+	userWorkspace := conf.GetUserWorkspace(username)
 	workspaces := filepath.SplitList(userWorkspace)
 	libPath := ""
 	for _, workspace := range workspaces {
@@ -156,19 +156,14 @@ func AutocompleteHandler(w http.ResponseWriter, r *http.Request) {
 		libPath += userLib + conf.PathListSeparator
 	}
 
-	logger.Debugf("gocode set lib-path [%s]", libPath)
+	logger.Tracef("gocode set lib-path [%s]", libPath)
 
 	// FIXME: using gocode set lib-path has some issues while accrossing workspaces
 	gocode := util.Go.GetExecutableInGOBIN("gocode")
-	argv := []string{"set", "lib-path", libPath}
-	exec.Command(gocode, argv...).Run()
+	exec.Command(gocode, []string{"set", "lib-path", libPath}...).Run()
 
-	argv = []string{"-f=json", "autocomplete", strconv.Itoa(offset)}
+	argv := []string{"-f=json", "--in=" + path, "autocomplete", strconv.Itoa(offset)}
 	cmd := exec.Command(gocode, argv...)
-
-	stdin, _ := cmd.StdinPipe()
-	stdin.Write([]byte(code))
-	stdin.Close()
 
 	output, err := cmd.CombinedOutput()
 	if nil != err {
@@ -226,7 +221,7 @@ func GetExprInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	offset := getCursorOffset(code, line, ch)
 
-	// logger.Infof("offset [%d]", offset)
+	logger.Tracef("offset [%d]", offset)
 
 	ideStub := util.Go.GetExecutableInGOBIN("ide_stub")
 	argv := []string{"type", "-cursor", filename + ":" + strconv.Itoa(offset), "-info", "."}
@@ -302,7 +297,7 @@ func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
 
 	offset := getCursorOffset(code, line, ch)
 
-	// logger.Infof("offset [%d]", offset)
+	logger.Tracef("offset [%d]", offset)
 
 	ideStub := util.Go.GetExecutableInGOBIN("ide_stub")
 	argv := []string{"type", "-cursor", filename + ":" + strconv.Itoa(offset), "-def", "."}
@@ -386,7 +381,7 @@ func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
 	ch := int(args["cursorCh"].(float64))
 
 	offset := getCursorOffset(code, line, ch)
-	// logger.Infof("offset [%d]", offset)
+	logger.Tracef("offset [%d]", offset)
 
 	ideStub := util.Go.GetExecutableInGOBIN("ide_stub")
 	argv := []string{"type", "-cursor", filename + ":" + strconv.Itoa(offset), "-use", "."}
@@ -455,7 +450,7 @@ func getCursorOffset(code string, line, ch int) (offset int) {
 }
 
 func setCmdEnv(cmd *exec.Cmd, username string) {
-	userWorkspace := conf.Wide.GetUserWorkspace(username)
+	userWorkspace := conf.GetUserWorkspace(username)
 
 	cmd.Env = append(cmd.Env,
 		"GOPATH="+userWorkspace,

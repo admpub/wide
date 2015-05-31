@@ -1,18 +1,18 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */ 
+ */
 
 (function ($) {
     $.fn.extend({
@@ -135,25 +135,6 @@
             $($("#" + id + "Dialog ." + styleClass.main + " div").get(0)).append(cloneObj);
             $(cloneObj).show();
 
-            // Sets position.
-            var top = "", left = "",
-                    $dialog = $("#" + id + "Dialog");
-            if (settings.position) {
-                top = settings.position.top;
-                left = settings.position.left;
-            } else {
-                // 20(footer) + 23(header)
-                top = parseInt((windowH - dialogH - 43) / 2);
-                if (top < 0) {
-                    top = 0;
-                }
-                left = parseInt((windowW - dialogW) / 2);
-            }
-            $dialog.css({
-                "top": top + "px",
-                "left": left + "px"
-            });
-
             // Bind event.
             $("#" + id + "Dialog ." + styleClass.closeIcon).bind("click", function () {
                 $.dialog._close(id, settings);
@@ -178,9 +159,10 @@
                     $.dialog._close(id, settings);
                 }
             });
-            
+
             $(window).resize(function () {
-                $(".dialog-background").height($("body").height());
+                var height = $("body").height() > $(window).height() ? $("body").height() : $(window).height();
+                $(".dialog-background").height(height);
             });
 
             if (typeof settings.afterInit === "function") {
@@ -263,9 +245,30 @@
         _openDialog: function (target, msg) {
             var inst = this._getInst(target);
             var id = inst.id,
-                    settings = inst.settings;
+                    settings = inst.settings,
+                    top = "", left = "",
+                    $dialog = $("#" + id + "Dialog"),
+                    windowH = $(window).height(),
+                    windowW = $(window).width(),
+                    dialogH = settings.height ? settings.height : parseInt(windowH * 0.6),
+                    dialogW = settings.width ? settings.width : parseInt(windowW * 0.6);
 
-            $("#" + id + "Dialog").show();
+            // Sets position.
+            if (settings.position) {
+                top = settings.position.top;
+                left = settings.position.left;
+            } else {
+                // 20(footer) + 23(header)
+                top = parseInt((windowH - dialogH - 43) / 2);
+                if (top < 0) {
+                    top = 0;
+                }
+                left = parseInt((windowW - dialogW) / 2);
+            }
+            $dialog.css({
+                "top": top + "px",
+                "left": left + "px"
+            }).show();
 
             if (settings.modal) {
                 var styleClass = this._getDefaults($.dialog._defaults, settings, "styleClass");

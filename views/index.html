@@ -4,7 +4,7 @@
         <meta charset="UTF-8">
         <title>{{.i18n.wide}} - {{.i18n.wide_title}}</title>
 
-        <meta name="keywords" content="Wide, Golang, IDE, Teaam, Cloud, B3log"/>
+        <meta name="keywords" content="Wide, Golang, IDE, Team, Cloud, B3log"/>
         <meta name="description" content="A Web-based IDE for Teams using Golang, do your development anytime, anywhere."/>
         <meta name="author" content="B3log">
         <meta property="og:description" content="A Web-based IDE for Teams using Golang, do your development anytime, anywhere."/>
@@ -42,7 +42,7 @@
                     <span>{{.i18n.file}}</span>
                     <div class="frame">
                         <ul>     
-                            <li class="save-all disabled" onclick="menu.saveAllFiles()">
+                            <li class="save-all disabled" onclick="if (!$(this).hasClass('disabled')){menu.saveAllFiles()}">
                                 <span class="font-ico ico-save"></span>
                                 <span>{{.i18n.save_all_files}}</span>
                                 <span class="fn-right ft-small">Shift-Ctrl-S</span>
@@ -50,6 +50,13 @@
                             <li class="close-all" onclick="menu.closeAllFiles()">
                                 <span class="space"></span>
                                 <span>{{.i18n.close_all_files}}</span>
+                            </li>
+                            <li class="hr"></li>
+                            <li class="disabled import" onclick="if (!$(this).hasClass('disabled')){$('#importFileupload').click(); }">
+                                <span class="ico-import font-ico"></span> {{.i18n.import}}
+                            </li>
+                            <li class="disabled export" onclick="if (!$(this).hasClass('disabled')){tree.export(this); }">
+                                <span class="ico-export font-ico"></span> {{.i18n.export}}
                             </li>
                             <li class="hr"></li>
                             <li onclick="menu.exit()">
@@ -259,30 +266,35 @@
                     <span>{{.i18n.run}}</span>
                     <div class="frame">
                         <ul>
-                            <li class="build disabled" onclick="menu.build()">
+                            <li class="build disabled" onclick="if (!$(this).hasClass('disabled')){menu.build()}">
                                 <span class="font-ico ico-build"></span>
                                 <span>{{.i18n.build}}</span>
                                 <span class="fn-right ft-small">F5</span>
                             </li>
-                            <li class="run disabled" onclick="menu.run()">
+                            <li class="run disabled" onclick="if (!$(this).hasClass('disabled')){menu.run()}">
                                 <span class="font-ico ico-buildrun"></span>
                                 <span>{{.i18n.build_n_run}}</span>
                                 <span class="fn-right ft-small">F6</span>
                             </li>
                             <li class="hr"></li>
-                            <li class="go-test disabled" onclick="menu.test()">
+                            <li class="go-test disabled" onclick="if (!$(this).hasClass('disabled')){menu.test()}">
                                 <span class="space"></span>
                                 <span>{{.i18n.test}}</span>
                             </li>
                             <li class="hr"></li>
-                            <li class="go-get disabled" onclick="menu.goget()">
+                            <li class="go-get disabled" onclick="if (!$(this).hasClass('disabled')){menu.goget()}">
                                 <span class="space"></span>
                                 <span>{{.i18n.goget}}</span>
                             </li>
-                            <li class="go-install disabled" onclick="menu.goinstall()">
+                            <li class="go-install disabled" onclick="if (!$(this).hasClass('disabled')){menu.goinstall()}">
                                 <span class="space"></span>
                                 <span>{{.i18n.goinstall}}</span>
-                            </li>      
+                            </li>
+                            <li class="hr"></li>
+                            <li class="go-vet disabled" onclick="if (!$(this).hasClass('disabled')){menu.govet()}">
+                                <span class="space"></span>
+                                <span>{{.i18n.govet}}</span>
+                            </li>
                         </ul>
                     </div>
                 </li>
@@ -306,6 +318,11 @@
                                 <span class="ico-signup font-ico"></span>
                                 <span>{{.i18n.sign_up}}</span>
                             </li>
+                            <li class="hr"></li>
+                            <li class="git-clone disabled" onclick="if (!$(this).hasClass('disabled')){tree.gitClone(this)}">
+                                <span class="ico-git font-ico"></span>
+                                <span>{{.i18n.git_clone}}</span>
+                            </li>
                         </ul>
                     </div>
                 </li>
@@ -316,13 +333,13 @@
                     <span>{{.i18n.help}}</span>
                     <div class="frame">
                         <ul>
-                            <li onclick="window.open('https://www.gitbook.io/book/88250/wide-user-guide')">
-                                <span class="space"></span>
+                            <li onclick="window.open('https://www.gitbook.com/book/88250/wide-user-guide')">
+                                <span class="font-ico ico-book"></span>
                                 <span>{{.i18n.wide_doc}}</span>
                             </li>                            
                             <li onclick="window.open('https://github.com/b3log/wide/issues/new')">
                                 <span class="ico-report font-ico"></span>
-                                {{.i18n.report_issues}}
+                                {{.i18n.issues}}
                             </li>
                             <li class="hr"></li>
                             <li onclick="window.open('/keyboard_shortcuts')">
@@ -330,9 +347,22 @@
                                 {{.i18n.keyboard_shortcuts}}
                             </li>
                             <li class="hr"></li>
-                            <li onclick="editors.openStartPage()">
+                            <li onclick="window.open('/playground')">
                                 <span class="space"></span>
+                                Playground
+                            </li>
+                            <li class="hr"></li>
+                            <li onclick="window.open('http://b3log.org/services')">
+                                <span class="font-ico ico-price"></span>
+                                <span>{{.i18n.pricing}}</span>
+                            </li>
+                            <li onclick="editors.openStartPage()">
+                                <span class="font-ico ico-start"></span>
                                 <span>{{.i18n.start_page}}</span>
+                            </li>
+                            <li onclick="window.open('http://pan.baidu.com/s/1dD3XwOT')">
+                                <span class="space"></span>
+                                <span>{{.i18n.download}}</span>
                             </li>
                             <li onclick="menu.openAbout()">
                                 <span class="font-ico ico-about"></span>
@@ -348,7 +378,7 @@
             <div class="fn-right">
                 <img class="gravatar"
                      onerror="this.src='/static/images/user-thumbnail.png'"
-                     src="https://secure.gravatar.com/avatar/{{.user.Gravatar}}?s=17&d=http://symphony.b3log.org/images/user-thumbnail.png" 
+                     src="https://secure.gravatar.com/avatar/{{.user.Gravatar}}?s=17&d=https://symphony.b3log.org/images/user-thumbnail.png" 
                      title="{{.user.Name}}"/>
                 <span class="font-ico ico-share"></span> &nbsp;
                 <span onclick="window.open('https://github.com/b3log/wide')"
@@ -368,14 +398,15 @@
             <div class="side">
                 <span title="{{.i18n.min}}" class="font-ico ico-min"></span>
                 <div class="tabs">
-                    <div class="current" data-index="filreTree">
+                    <div class="current" data-index="fileTree">
                         <span title="{{.i18n.file}}">{{.i18n.file}}</span>
                     </div>
                 </div> 
                 <div class="tabs-panel">
-                    <div data-index="filreTree">
+                    <div data-index="fileTree">
                         <ul id="files" tabindex="-1" class="ztree"></ul>
-                        <input id="importFileupload" type="file" name="files[]" style="display: none;" onclick="tree.import();" multiple>
+                        <input id="importFileupload" class="fn-none" type="file"
+                               name="files[]" onclick="tree.import();" multiple>
                         <!-- directory context menu -->
                         <div id="dirRMenu" class="frame">
                             <ul>
@@ -392,13 +423,22 @@
                                     <span class="space"></span> {{.i18n.rename}}
                                 </li>
                                 <li class="hr"></li>
+                                <li class="find" onclick="$('#dialogSearchForm').dialog('open');">
+                                    <span class="font-ico ico-findfiles"></span> {{.i18n.find_in_files}}
+                                </li>
+                                <li class="hr"></li>
                                 <li onclick="tree.refresh(this);">
                                     <span class="ico-refresh font-ico"></span> {{.i18n.refresh}}
                                 </li>
+                                <li class="hr"></li>
+                                <li onclick="tree.gitClone(this);">
+                                    <span class="ico-git font-ico"></span> {{.i18n.git_clone}}
+                                </li>
+                                <li class="hr"></li>
                                 <li onclick="$('#importFileupload').click();">
                                     <span class="ico-import font-ico"></span> {{.i18n.import}}
                                 </li>
-                                <li onclick="tree.export(this);">
+                                <li onclick="tree.export();">
                                     <span class="ico-export font-ico"></span> {{.i18n.export}}
                                 </li>
                             </ul>
@@ -417,8 +457,11 @@
                                     <span class="space"></span> {{.i18n.rename}}
                                 </li>
                                 <li class="hr"></li>
-                                <li class="" onclick="tree.export(this);">
+                                <li class="export" onclick="tree.export(this);">
                                     <span class="ico-export font-ico"></span> {{.i18n.export}}
+                                </li>
+                                <li class="decompress" onclick="tree.decompress(this);">
+                                    <span class="space"></span> {{.i18n.decompress}}
                                 </li>
                             </ul>
                         </div>
@@ -442,13 +485,25 @@
                             <span>{{.i18n.close_other}}</span>
                         </li>
                         <li class="hr"></li>
-                        <li id="copyFilePath" title="Copy file path">
+                        <li id="copyFilePath" title="{{.i18n.copy_file_path}}">
                             <span>{{.i18n.copy_file_path}}</span>
                         </li>    
                     </ul>
                 </div>
                 <div class="tabs"></div>
                 <div class="tabs-panel"></div>
+            </div>
+
+            <div class="side-right">
+                <span title="{{.i18n.min}}" class="font-ico ico-min"></span>
+                <div class="tabs">
+                    <div class="current" data-index="outline">
+                        <span title="{{.i18n.outline}}">{{.i18n.outline}}</span>
+                    </div>
+                </div> 
+                <div class="tabs-panel">
+                    <div id="outline" tabindex="-1" data-index="outline"></div>
+                </div>
             </div>
 
             <div class="bottom-window-group">
@@ -498,6 +553,7 @@
             <div class="fn-left">
                 <span title="{{.i18n.restore_side}}" class="font-ico ico-restore fn-none"></span>
                 <span title="{{.i18n.restore_bottom}}" class="font-ico ico-restore fn-none"></span>
+                <span title="{{.i18n.restore_outline}}" class="font-ico ico-restore fn-none"></span>
             </div>
             <div class="fn-right">
                 <span class="cursor"></span>
@@ -523,6 +579,9 @@
         <div id="dialogGoLinePrompt" class="dialog-prompt fn-none">
             <input/>
         </div>
+        <div id="dialogGitClonePrompt" class="dialog-prompt fn-none">
+            <input placeholder="https://github.com/b3log/wide.git"/>
+        </div>
         <div id="dialogGoFilePrompt" class="dialog-prompt fn-none">
             <input/>
             <ul class="list" tabindex="-1"></ul>
@@ -544,42 +603,13 @@
                     "context": {{.conf.Context}},
                             "staticServer": '{{.conf.StaticServer}}',
                             "pathSeparator": '{{.pathSeparator}}',
-                            "label": {
-                            "restore_editor": "{{.i18n.restore_editor}}",
-                                    "max_editor": "{{.i18n.max_editor}}",
-                                    "delete": "{{.i18n.delete}}",
-                                    "rename": "{{.i18n.rename}}",
-                                    "cancel": "{{.i18n.cancel}}",
-                                    "goto_line": "{{.i18n.goto_line}}",
-                                    "goto_file": "{{.i18n.goto_file}}",
-                                    "go": "{{.i18n.go}}",
-                                    "create": "{{.i18n.create}}",
-                                    "create_file": "{{.i18n.create_file}}",
-                                    "create_dir": "{{.i18n.create_dir}}",
-                                    "tip": "{{.i18n.tip}}",
-                                    "confirm": "{{.i18n.confirm}}",
-                                    "build_n_run": "{{.i18n.build_n_run}}",
-                                    "stop": "{{.i18n.stop}}",
-                                    "find_usages": "{{.i18n.find_usages}}",
-                                    "search_text": "{{.i18n.search_text}}",
-                                    "search": "{{.i18n.search}}",
-                                    "start_page": "{{.i18n.start_page}}",
-                                    "confirm_save": "{{.i18n.confirm_save}}",
-                                    "community": "{{.i18n.community}}",
-                                    "about": "{{.i18n.about}}",
-                                    "new_version_available": "{{.i18n.new_version_available}}",
-                                    "colon": "{{.i18n.colon}}",
-                                    "file": "{{.i18n.file}}",
-                                    "uptodate": "{{.i18n.uptodate}}",
-                                    "perference": "{{.i18n.perference}}",
-                                    "apply": "{{.i18n.apply}}",
-                                    "no_empty": "{{.i18n.no_empty}}"
-                            },
+                            "label": {{.i18n}},
                             "channel": {{.conf.Channel}},
                             "wideSessionId": '{{.session.ID}}',
                             "editorTheme": '{{.user.Editor.Theme}}',
                             "latestSessionContent": {{.latestSessionContent}},
-                            "editorTabSize": '{{.user.Editor.TabSize}}'
+                            "editorTabSize": '{{.user.Editor.TabSize}}',
+                            "keymap": '{{.user.Keymap}}'
                     };
                     // 发往 Wide 的所有 AJAX 请求需要使用该函数创建请求参数.
                             function newWideRequest() {
@@ -592,9 +622,11 @@
         </script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/jquery-2.1.1.min.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/reconnecting-websocket.js"></script>
-        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/ztree/jquery.ztree.all-3.5.min.js"></script>                
+        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/ztree/jquery.ztree.all-3.5.min.js"></script>    
+        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/Autolinker.min.js"></script>    
 
-        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/codemirror.js"></script>
+
+        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/codemirror.min.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/addon/lint/lint.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/addon/lint/json-lint.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/addon/selection/active-line.js"></script>
@@ -618,6 +650,7 @@
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/addon/comment/comment.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/meta.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/go/go.js"></script>
+        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/clike/clike.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/xml/xml.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/htmlmixed/htmlmixed.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/javascript/javascript.js"></script>
@@ -625,8 +658,12 @@
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/css/css.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/shell/shell.js"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/mode/sql/sql.js"></script>
+        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/codemirror-{{.codeMirrorVer}}/keymap/vim.js"></script>
+        
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/lint/json-lint.js?{{.conf.StaticResourceVersion}}"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/lint/go-lint.js?{{.conf.StaticResourceVersion}}"></script>
+        
+        <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/emmet.js?{{.conf.StaticResourceVersion}}"></script>            
 
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/js-beautify-1.5.4/beautify.js?{{.conf.StaticResourceVersion}}"></script>
         <script type="text/javascript" src="{{.conf.StaticServer}}/static/js/lib/js-beautify-1.5.4/beautify-html.js?{{.conf.StaticResourceVersion}}"></script>

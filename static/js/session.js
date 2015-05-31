@@ -1,12 +1,12 @@
-/* 
- * Copyright (c) 2014, B3log
- *  
+/*
+ * Copyright (c) 2014-2015, b3log.org
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *  
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,7 +18,7 @@ var session = {
     init: function () {
         this._initWS();
 
-        // 定时（30 秒）保存会话内容.
+        // save session content per 30 seconds
         setInterval(function () {
             var request = newWideRequest(),
                     filse = [],
@@ -35,9 +35,9 @@ var session = {
 
             fileTree = tree.getOpenPaths();
 
-            request.currentFile = currentFile; // 当前编辑器
-            request.fileTree = fileTree; // 文件树展开状态
-            request.files = filse; // 编辑器打开状态
+            request.currentFile = currentFile; // current editor file
+            request.fileTree = fileTree; // file tree expansion state
+            request.files = filse; // editor tabs
 
             $.ajax({
                 type: 'POST',
@@ -50,12 +50,15 @@ var session = {
         }, 30000);
     },
     restore: function () {
+        if (!config.latestSessionContent) {
+            return;
+        }
+
         var fileTree = config.latestSessionContent.FileTree,
                 files = config.latestSessionContent.Files,
                 currentFile = config.latestSessionContent.CurrentFile,
                 id = "",
                 nodesToOpen = [];
-
 
         var nodes = tree.fileTree.transformToArray(tree.fileTree.getNodes());
 
@@ -63,7 +66,7 @@ var session = {
             // expand tree
             for (var j = 0, jj = fileTree.length; j < jj; j++) {
                 if (nodes[i].path === fileTree[j]) {
-                    // 当父节点都展开时，才展开该节点
+                    // expand this node only if its parents are open
                     var parents = tree.getAllParents(tree.fileTree.getNodeByTId(nodes[i].tId)),
                             isOpen = true;
                     for (var l = 0, max = parents.length; l < max; l++) {
@@ -74,7 +77,7 @@ var session = {
                     if (isOpen) {
                         tree.fileTree.expandNode(nodes[i], true, false, true);
                     } else {
-                        // 设置状态
+                        // flag it is open
                         nodes[i].open = true;
                     }
                     break;
@@ -90,7 +93,7 @@ var session = {
             }
 
             if (nodes[i].path === currentFile) {
-                id = nodes[i].tId;
+                id = nodes[i].path;
 
                 // FIXME: 上面的展开是异步进行的，所以执行到这里的时候可能还没有展开完，导致定位不了可视区域
                 tree.fileTree.selectNode(nodes[i]);
@@ -98,7 +101,7 @@ var session = {
             }
         }
 
-        // 处理编辑器打开顺序
+        // handle the open sequence of editors
         for (var m = 0, mm = files.length; m < mm; m++) {
             for (var n = 0, nn = nodesToOpen.length; n < nn; n++) {
                 if (nodesToOpen[n].path === files[m]) {
@@ -108,10 +111,17 @@ var session = {
             }
         }
 
+        // set the current editor
         editors.tabs.setCurrent(id);
+        for (var c = 0, max = editors.data.length; c < max; c++) {
+            if (id === editors.data[c].id) {
+                wide.curEditor = editors.data[c].editor;
+                break;
+            }
+        }
     },
     _initWS: function () {
-        // 用于保持会话，如果该通道断开，则服务器端会销毁会话状态，回收相关资源.
+        // Used for session retention, server will release all resources of the session if this channel closed
         var sessionWS = new ReconnectingWebSocket(config.channel + '/session/ws?sid=' + config.wideSessionId);
 
         sessionWS.onopen = function () {
@@ -120,13 +130,13 @@ var session = {
             var dateFormat = function (time, fmt) {
                 var date = new Date(time);
                 var dateObj = {
-                    "M+": date.getMonth() + 1, //月份 
-                    "d+": date.getDate(), //日 
-                    "h+": date.getHours(), //小时 
-                    "m+": date.getMinutes(), //分 
-                    "s+": date.getSeconds(), //秒 
-                    "q+": Math.floor((date.getMonth() + 3) / 3), //季度 
-                    "S": date.getMilliseconds() //毫秒 
+                    "M+": date.getMonth() + 1,
+                    "d+": date.getDate(),
+                    "h+": date.getHours(),
+                    "m+": date.getMinutes(),
+                    "s+": date.getSeconds(),
+                    "q+": Math.floor((date.getMonth() + 3) / 3),
+                    "S": date.getMilliseconds()
                 };
                 if (/(y+)/.test(fmt))
                     fmt = fmt.replace(RegExp.$1, (date.getFullYear() + "").substr(4 - RegExp.$1.length));
@@ -151,6 +161,14 @@ var session = {
 
         sessionWS.onmessage = function (e) {
             console.log('[session onmessage]' + e.data);
+            var data = JSON.parse(e.data);
+
+            switch (data.cmd) {
+                case 'create-file':
+                    break;
+                case 'remove-file':
+                    break;
+            }
         };
         sessionWS.onclose = function (e) {
             console.log('[session onclose] disconnected (' + e.code + ')');
