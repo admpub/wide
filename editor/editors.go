@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -179,8 +179,8 @@ func AutocompleteHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetExprInfoHandler handles request of getting expression infomation.
 func GetExprInfoHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	session, _ := session.HTTPSession.Get(r, "wide-session")
 	username := session.Values["username"].(string)
@@ -194,14 +194,14 @@ func GetExprInfoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := args["path"].(string)
-	curDir := path[:strings.LastIndex(path, conf.PathSeparator)]
-	filename := path[strings.LastIndex(path, conf.PathSeparator)+1:]
+	curDir := filepath.Dir(path)
+	filename := filepath.Base(path)
 
 	fout, err := os.Create(path)
 
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -211,7 +211,7 @@ func GetExprInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := fout.Close(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -223,8 +223,8 @@ func GetExprInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	logger.Tracef("offset [%d]", offset)
 
-	ideStub := util.Go.GetExecutableInGOBIN("ide_stub")
-	argv := []string{"type", "-cursor", filename + ":" + strconv.Itoa(offset), "-info", "."}
+	ideStub := util.Go.GetExecutableInGOBIN("gotools")
+	argv := []string{"types", "-pos", filename + ":" + strconv.Itoa(offset), "-info", "."}
 	cmd := exec.Command(ideStub, argv...)
 	cmd.Dir = curDir
 
@@ -240,18 +240,18 @@ func GetExprInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	exprInfo := strings.TrimSpace(string(output))
 	if "" == exprInfo {
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
 
-	data["info"] = exprInfo
+	result.Data = exprInfo
 }
 
 // FindDeclarationHandler handles request of finding declaration.
 func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	session, _ := session.HTTPSession.Get(r, "wide-session")
 	if session.IsNew {
@@ -270,14 +270,14 @@ func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := args["path"].(string)
-	curDir := path[:strings.LastIndex(path, conf.PathSeparator)]
-	filename := path[strings.LastIndex(path, conf.PathSeparator)+1:]
+	curDir := filepath.Dir(path)
+	filename := filepath.Base(path)
 
 	fout, err := os.Create(path)
 
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -287,7 +287,7 @@ func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := fout.Close(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -299,8 +299,8 @@ func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
 
 	logger.Tracef("offset [%d]", offset)
 
-	ideStub := util.Go.GetExecutableInGOBIN("ide_stub")
-	argv := []string{"type", "-cursor", filename + ":" + strconv.Itoa(offset), "-def", "."}
+	ideStub := util.Go.GetExecutableInGOBIN("gotools")
+	argv := []string{"types", "-pos", filename + ":" + strconv.Itoa(offset), "-def", "."}
 	cmd := exec.Command(ideStub, argv...)
 	cmd.Dir = curDir
 
@@ -316,7 +316,7 @@ func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
 
 	found := strings.TrimSpace(string(output))
 	if "" == found {
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -324,18 +324,22 @@ func FindDeclarationHandler(w http.ResponseWriter, r *http.Request) {
 	part := found[:strings.LastIndex(found, ":")]
 	cursorSep := strings.LastIndex(part, ":")
 	path = found[:cursorSep]
+
 	cursorLine, _ := strconv.Atoi(found[cursorSep+1 : strings.LastIndex(found, ":")])
 	cursorCh, _ := strconv.Atoi(found[strings.LastIndex(found, ":")+1:])
 
-	data["path"] = path
+	data := map[string]interface{}{}
+	result.Data = &data
+
+	data["path"] = filepath.ToSlash(path)
 	data["cursorLine"] = cursorLine
 	data["cursorCh"] = cursorCh
 }
 
 // FindUsagesHandler handles request of finding usages.
 func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	session, _ := session.HTTPSession.Get(r, "wide-session")
 	if session.IsNew {
@@ -355,14 +359,14 @@ func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filePath := args["path"].(string)
-	curDir := filePath[:strings.LastIndex(filePath, conf.PathSeparator)]
-	filename := filePath[strings.LastIndex(filePath, conf.PathSeparator)+1:]
+	curDir := filepath.Dir(filePath)
+	filename := filepath.Base(filePath)
 
 	fout, err := os.Create(filePath)
 
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -372,7 +376,7 @@ func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := fout.Close(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -383,8 +387,8 @@ func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
 	offset := getCursorOffset(code, line, ch)
 	logger.Tracef("offset [%d]", offset)
 
-	ideStub := util.Go.GetExecutableInGOBIN("ide_stub")
-	argv := []string{"type", "-cursor", filename + ":" + strconv.Itoa(offset), "-use", "."}
+	ideStub := util.Go.GetExecutableInGOBIN("gotools")
+	argv := []string{"types", "-pos", filename + ":" + strconv.Itoa(offset), "-use", "."}
 	cmd := exec.Command(ideStub, argv...)
 	cmd.Dir = curDir
 
@@ -398,21 +402,21 @@ func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := strings.TrimSpace(string(output))
-	if "" == result {
-		data["succ"] = false
+	out := strings.TrimSpace(string(output))
+	if "" == out {
+		result.Succ = false
 
 		return
 	}
 
-	founds := strings.Split(result, "\n")
+	founds := strings.Split(out, "\n")
 	usages := []*file.Snippet{}
 	for _, found := range founds {
 		found = strings.TrimSpace(found)
 
 		part := found[:strings.LastIndex(found, ":")]
 		cursorSep := strings.LastIndex(part, ":")
-		path := found[:cursorSep]
+		path := filepath.ToSlash(found[:cursorSep])
 		cursorLine, _ := strconv.Atoi(found[cursorSep+1 : strings.LastIndex(found, ":")])
 		cursorCh, _ := strconv.Atoi(found[strings.LastIndex(found, ":")+1:])
 
@@ -420,7 +424,7 @@ func FindUsagesHandler(w http.ResponseWriter, r *http.Request) {
 		usages = append(usages, usage)
 	}
 
-	data["founds"] = usages
+	result.Data = usages
 }
 
 // getCursorOffset calculates the cursor offset.

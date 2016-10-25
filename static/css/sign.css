@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, b3log.org
+ * Copyright (c) 2014-2016, b3log.org & hacpai.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,8 @@
     border-top: 1px solid #A4A4A4;
     border-bottom: 1px solid #919191;
     background-color: #202021;
+    height: 632px;
+    padding-top: 222px;
 }
 
 .content h2 {

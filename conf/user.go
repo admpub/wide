@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,21 +28,25 @@ import (
 	"github.com/b3log/wide/util"
 )
 
-// Layout represents the layot of a window.
+// Panel represents a UI panel.
+type Panel struct {
+	State string `json:"state"` // panel state, "min"/"max"/"normal"
+	Size  uint16 `json:"size"`  // panel size
+}
+
+// Layout represents the UI layout.
 type Layout struct {
-	State string // min/max/normal
+	Side      *Panel `json:"side"`      // Side panel
+	SideRight *Panel `json:"sideRight"` // Right-Side panel
+	Bottom    *Panel `json:"bottom"`    // Bottom panel
 }
 
 // LatestSessionContent represents the latest session content.
 type LatestSessionContent struct {
-	FileTree    []string // paths of expanding nodes of file tree
-	Files       []string // paths of files of opening editor tabs
-	CurrentFile string   // path of file of the current focused editor tab
-
-	FileTreeLayout *Layout // TODO: https://github.com/b3log/wide/issues/205
-	EditorLayout   *Layout // TODO: https://github.com/b3log/wide/issues/205
-	OutlineLayout  *Layout // TODO: https://github.com/b3log/wide/issues/205
-	BottomLayout   *Layout // TODO: https://github.com/b3log/wide/issues/205
+	FileTree    []string `json:"fileTree"`    // paths of expanding nodes of file tree
+	Files       []string `json:"files"`       // paths of files of opening editor tabs
+	CurrentFile string   `json:"currentFile"` // path of file of the current focused editor tab
+	Layout      *Layout  `json:"layout"`      // UI Layout
 }
 
 // User configuration.
@@ -100,6 +104,12 @@ func (u *User) Save() bool {
 
 	if nil != err {
 		logger.Error(err)
+
+		return false
+	}
+
+	if "" == string(bytes) {
+		logger.Error("Truncated user [" + u.Name + "]")
 
 		return false
 	}

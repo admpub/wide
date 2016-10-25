@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,8 +82,8 @@ func GetFilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetGzJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetGzResult(w, r, result)
 
 	userWorkspace := conf.GetUserWorkspace(username)
 	workspaces := filepath.SplitList(userWorkspace)
@@ -101,7 +101,7 @@ func GetFilesHandler(w http.ResponseWriter, r *http.Request) {
 		workspaceNode := Node{
 			Id:        filepath.ToSlash(workspacePath), // jQuery API can't accept "\", so we convert it to "/"
 			Name:      workspace[strings.LastIndex(workspace, conf.PathSeparator)+1:],
-			Path:      workspacePath,
+			Path:      filepath.ToSlash(workspacePath),
 			IconSkin:  "ico-ztree-dir-workspace ",
 			Type:      "d",
 			Creatable: true,
@@ -118,7 +118,7 @@ func GetFilesHandler(w http.ResponseWriter, r *http.Request) {
 	// add Go API node
 	root.Children = append(root.Children, apiNode)
 
-	data["root"] = root
+	result.Data = root
 }
 
 // RefreshDirectoryHandler handles request of refresh a directory of file tree.
@@ -134,7 +134,7 @@ func RefreshDirectoryHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	path := r.FormValue("path")
 
-	if !authWorkspace(username, path) {
+	if !util.Go.IsAPI(path) && !session.CanAccess(username, path) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -164,21 +164,21 @@ func GetFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
 
 	path := args["path"].(string)
 
-	if !authWorkspace(username, path) {
+	if !util.Go.IsAPI(path) && !session.CanAccess(username, path) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -186,11 +186,14 @@ func GetFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	size := util.File.GetFileSize(path)
 	if size > 5242880 { // 5M
-		data["succ"] = false
-		data["msg"] = "This file is too large to open :("
+		result.Succ = false
+		result.Msg = "This file is too large to open :("
 
 		return
 	}
+
+	data := map[string]interface{}{}
+	result.Data = &data
 
 	buf, _ := ioutil.ReadFile(path)
 
@@ -219,8 +222,8 @@ func GetFileHandler(w http.ResponseWriter, r *http.Request) {
 	content := string(buf)
 
 	if util.File.IsBinary(content) {
-		data["succ"] = false
-		data["msg"] = "Can't open a binary file :("
+		result.Succ = false
+		result.Msg = "Can't open a binary file :("
 	} else {
 		data["content"] = content
 		data["path"] = path
@@ -237,14 +240,14 @@ func SaveFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -252,7 +255,7 @@ func SaveFileHandler(w http.ResponseWriter, r *http.Request) {
 	filePath := args["file"].(string)
 	sid := args["sid"].(string)
 
-	if !authWorkspace(username, filePath) {
+	if util.Go.IsAPI(filePath) || !session.CanAccess(username, filePath) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -262,7 +265,7 @@ func SaveFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -273,7 +276,7 @@ func SaveFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := fout.Close(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		wSession := session.WideSessions.Get(sid)
 		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
@@ -293,21 +296,21 @@ func NewFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
 
 	path := args["path"].(string)
 
-	if !authWorkspace(username, path) {
+	if util.Go.IsAPI(path) || !session.CanAccess(username, path) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -319,7 +322,7 @@ func NewFileHandler(w http.ResponseWriter, r *http.Request) {
 	wSession := session.WideSessions.Get(sid)
 
 	if !createFile(path, fileType) {
-		data["succ"] = false
+		result.Succ = false
 
 		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
 			Data: "can't create file " + path}
@@ -345,20 +348,21 @@ func RemoveFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
 
 	path := args["path"].(string)
-	if !authWorkspace(username, path) {
+
+	if util.Go.IsAPI(path) || !session.CanAccess(username, path) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -369,7 +373,7 @@ func RemoveFileHandler(w http.ResponseWriter, r *http.Request) {
 	wSession := session.WideSessions.Get(sid)
 
 	if !removeFile(path) {
-		data["succ"] = false
+		result.Succ = false
 
 		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
 			Data: "can't remove file " + path}
@@ -390,27 +394,28 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
 
 	oldPath := args["oldPath"].(string)
-	if !authWorkspace(username, oldPath) {
+	if util.Go.IsAPI(oldPath) ||
+		!session.CanAccess(username, oldPath) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
 	}
 
 	newPath := args["newPath"].(string)
-	if !authWorkspace(username, newPath) {
+	if util.Go.IsAPI(newPath) || !session.CanAccess(username, newPath) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -421,7 +426,7 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	wSession := session.WideSessions.Get(sid)
 
 	if !renameFile(oldPath, newPath) {
-		data["succ"] = false
+		result.Succ = false
 
 		wSession.EventQueue.Queue <- &event.Event{Code: event.EvtCodeServerInternalError, Sid: sid,
 			Data: "can't rename file " + oldPath}
@@ -454,19 +459,19 @@ func FindHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	username := httpSession.Values["username"].(string)
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
 
 	path := args["path"].(string) // path of selected file in file tree
-	if !authWorkspace(username, path) {
+	if !util.Go.IsAPI(path) && !session.CanAccess(username, path) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 
 		return
@@ -489,13 +494,13 @@ func FindHandler(w http.ResponseWriter, r *http.Request) {
 		for _, r := range rs {
 			substr := util.Str.LCS(path, *r)
 
-			founds = append(founds, &foundPath{Path: *r, score: len(substr)})
+			founds = append(founds, &foundPath{Path: filepath.ToSlash(*r), score: len(substr)})
 		}
 	}
 
 	sort.Sort(founds)
 
-	data["founds"] = founds
+	result.Data = founds
 }
 
 // SearchTextHandler handles request of searching files under the specified directory with the specified keyword.
@@ -507,14 +512,14 @@ func SearchTextHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -522,7 +527,7 @@ func SearchTextHandler(w http.ResponseWriter, r *http.Request) {
 	sid := args["sid"].(string)
 	wSession := session.WideSessions.Get(sid)
 	if nil == wSession {
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -546,7 +551,7 @@ func SearchTextHandler(w http.ResponseWriter, r *http.Request) {
 		founds = searchInFile(dir, text)
 	}
 
-	data["founds"] = founds
+	result.Data = founds
 }
 
 // walk traverses the specified path to build a file tree.
@@ -561,7 +566,7 @@ func walk(path string, node *Node, creatable, removable, isGOAPI bool) {
 		child := Node{
 			Id:        filepath.ToSlash(fpath), // jQuery API can't accept "\", so we convert it to "/"
 			Name:      filename,
-			Path:      fpath,
+			Path:      filepath.ToSlash(fpath),
 			Removable: removable,
 			IsGoAPI:   isGOAPI,
 			Children:  []*Node{}}
@@ -616,13 +621,18 @@ func listFiles(dirname string) []string {
 		}
 
 		if fio.IsDir() {
-			// exclude the .git direcitory
-			if ".git" == fio.Name() {
+			// exclude the .git, .svn, .hg direcitory
+			if ".git" == fio.Name() || ".svn" == fio.Name() || ".hg" == fio.Name() {
 				continue
 			}
 
 			dirs = append(dirs, name)
 		} else {
+			// exclude the .DS_Store directory on Mac OS X
+			if ".DS_Store" == fio.Name() {
+				continue
+			}
+
 			files = append(files, name)
 		}
 	}
@@ -836,24 +846,12 @@ func searchInFile(path string, text string) []*Snippet {
 		ch := strings.Index(strings.ToLower(line), strings.ToLower(text))
 
 		if -1 != ch {
-			snippet := &Snippet{Path: path, Line: idx + 1, Ch: ch + 1, Contents: []string{line}}
+			snippet := &Snippet{Path: filepath.ToSlash(path),
+				Line: idx + 1, Ch: ch + 1, Contents: []string{line}}
 
 			ret = append(ret, snippet)
 		}
 	}
 
 	return ret
-}
-
-func authWorkspace(username, path string) bool {
-	userWorkspace := conf.GetUserWorkspace(username)
-	workspaces := filepath.SplitList(userWorkspace)
-
-	for _, workspace := range workspaces {
-		if strings.HasPrefix(path, workspace) {
-			return true
-		}
-	}
-
-	return false
 }

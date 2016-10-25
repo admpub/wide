@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,14 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestGetCrossPlatforms(t *testing.T) {
+	crossPlatforms := Go.GetCrossPlatforms()
+
+	if len(crossPlatforms) < 1 {
+		t.Error("should have one platform at least")
+	}
+}
 
 func TestGetAPIPath(t *testing.T) {
 	apiPath := Go.GetAPIPath()

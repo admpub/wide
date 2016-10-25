@@ -126,7 +126,7 @@
     "close": "关闭",
     "close_other": "关闭其它",
     "clear": "清空",
-    "perference": "偏好设定",
+    "preference": "偏好设定",
     "appearence": "外观",
     "gotool": "Go 工具",
     "user": "用户",
@@ -178,5 +178,6 @@
     "terms": "使用条款",
     "download": "下载",
     "decompress": "解压缩",
-    "keymap": "快捷键"
+    "keymap": "快捷键",
+    "resize": "调整大小"
 }

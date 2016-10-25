@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, b3log.org
+ * Copyright (c) 2014-2016, b3log.org & hacpai.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
+/*
+ * @file editor.js
+ *
+ * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
+ * @author <a href="http://88250.b3log.org">Liang Ding</a>
+ * @version 1.1.1.0, Jan 12, 2016
+ */
 var editors = {
+    autocompleteMutex: false,
     data: [],
     tabs: {},
     getEditorByPath: function (path) {
@@ -129,28 +137,9 @@ var editors = {
                     wide.curEditor = undefined;
                     $(".footer .cursor").text('');
                     wide.refreshOutline();
+                    
                     return false;
                 }
-
-                // set tree node selected
-                var tId = tree.getTIdByPath(id);
-                var node = tree.fileTree.getNodeByTId(tId);
-                tree.fileTree.selectNode(node);
-                wide.curNode = node;
-
-                for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                    if (editors.data[i].id === id) {
-                        wide.curEditor = editors.data[i].editor;
-                        break;
-                    }
-                }
-
-                var cursor = wide.curEditor.getCursor();
-                wide.curEditor.setCursor(cursor);
-                wide.curEditor.focus();
-                wide.refreshOutline();
-
-                $(".footer .cursor").text('|   ' + (cursor.line + 1) + ':' + (cursor.ch + 1) + '   |');
             },
             removeBefore: function (id) {
                 if (id === 'startPage') { // 当前关闭的 tab 是起始页
@@ -218,31 +207,6 @@ var editors = {
                     // 关闭的不是当前编辑器
                     return false;
                 }
-
-                // set tree node selected
-                var tId = tree.getTIdByPath(id);
-                var node = tree.fileTree.getNodeByTId(tId);
-                tree.fileTree.selectNode(node);
-                wide.curNode = node;
-
-                for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                    if (editors.data[i].id === nextId) {
-                        wide.curEditor = editors.data[i].editor;
-                        break;
-                    }
-                }
-
-                wide.refreshOutline();
-                var cursor = wide.curEditor.getCursor();
-                $(".footer .cursor").text('|   ' + (cursor.line + 1) + ':' + (cursor.ch + 1) + '   |');
-            }
-        });
-
-        $(".edit-panel .tabs").on("dblclick", function () {
-            if ($(".toolbars .ico-max").length === 1) {
-                windows.maxEditor();
-            } else {
-                windows.restoreEditor();
             }
         });
 
@@ -282,10 +246,9 @@ var editors = {
                     + '"><span class="ico-start font-ico"></span> ' + config.label.start_page + '</span>',
             content: '<div id="startPage"></div>',
             after: function () {
-                $("#startPage").height($('.side-right').height() - $(".bottom-window-group").children(".tabs").height() - 100);
                 $("#startPage").load(config.context + '/start?sid=' + config.wideSessionId);
                 $.ajax({
-                    url: "https://symphony.b3log.org/apis/articles?tags=wide,golang&p=1&size=20",
+                    url: "https://hacpai.com/apis/articles?tags=wide,golang&p=1&size=20",
                     type: "GET",
                     dataType: "jsonp",
                     jsonp: "callback",
@@ -305,7 +268,7 @@ var editors = {
                         for (var i = 0; i < length; i++) {
                             var article = articles[i];
                             listHTML += "<li>"
-                                    + "<a target='_blank' href='http://symphony.b3log.org"
+                                    + "<a target='_blank' href='"
                                     + article.articlePermalink + "'>"
                                     + article.articleTitle + "</a>&nbsp; <span class='date'>"
                                     + dateFormat(article.articleCreateTime, 'yyyy-MM-dd');
@@ -319,11 +282,12 @@ var editors = {
         });
     },
     getCurrentId: function () {
-        var currentId = editors.tabs.getCurrentId();
-        if (currentId === 'startPage') {
-            currentId = null;
+        var ret = editors.tabs.getCurrentId();
+        if (ret === 'startPage') {
+            ret = null;
         }
-        return currentId;
+        
+        return ret;
     },
     getCurrentPath: function () {
         var currentPath = $(".edit-panel .tabs .current span:eq(0)").attr("title");
@@ -334,6 +298,7 @@ var editors = {
     },
     _initCodeMirrorHotKeys: function () {
         CodeMirror.registerHelper("hint", "go", function (editor) {
+            editor = wide.curEditor; // 使用当前编辑器覆盖实参，因为异步调用的原因，实参不一定正确
             var word = /[\w$]+/;
 
             var cur = editor.getCursor(), curLine = editor.getLine(cur.line);
@@ -353,6 +318,12 @@ var editors = {
             request.cursorCh = cur.ch;
 
             var autocompleteHints = [];
+
+            if (editors.autocompleteMutex && editor.state.completionActive) {
+                return;
+            }
+
+            editors.autocompleteMutex = true;
 
             $.ajax({
                 async: false, // 同步执行
@@ -407,11 +378,14 @@ var editors = {
                         }
                     }
 
-                    // 清除未保存状态
                     editor.doc.markClean();
-                    $(".edit-panel .tabs > div.current > span").removeClass("changed");
+                    $(".edit-panel .tabs .current > span:eq(0)").removeClass("changed");
                 }
             });
+
+            setTimeout(function () {
+                editors.autocompleteMutex = false;
+            }, 20);
 
             return {list: autocompleteHints, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end)};
         });
@@ -463,14 +437,15 @@ var editors = {
                 url: config.context + '/exprinfo',
                 data: JSON.stringify(request),
                 dataType: "json",
-                success: function (data) {
-                    if (!data.succ) {
+                success: function (result) {
+                    if (!result.succ) {
                         return;
                     }
+                    
                     var position = wide.curEditor.cursorCoords();
                     $("body").append('<div style="top:'
                             + (position.top + 15) + 'px;left:' + position.left
-                            + 'px" class="edit-exprinfo">' + data.info + '</div>');
+                            + 'px" class="edit-exprinfo">' + result.data + '</div>');
                 }
             });
         };
@@ -610,10 +585,12 @@ var editors = {
                 url: config.context + '/find/decl',
                 data: JSON.stringify(request),
                 dataType: "json",
-                success: function (data) {
-                    if (!data.succ) {
+                success: function (result) {
+                    if (!result.succ) {
                         return;
                     }
+                    
+                    var data = result.data;
 
                     var tId = tree.getTIdByPath(data.path);
                     wide.curNode = tree.fileTree.getNodeByTId(tId);
@@ -638,12 +615,12 @@ var editors = {
                 url: config.context + '/find/usages',
                 data: JSON.stringify(request),
                 dataType: "json",
-                success: function (data) {
-                    if (!data.succ) {
+                success: function (result) {
+                    if (!result.succ) {
                         return;
                     }
 
-                    editors.appendSearch(data.founds, 'usages', '');
+                    editors.appendSearch(result.data, 'usages', '');
                 }
             });
         };
@@ -773,9 +750,11 @@ var editors = {
             theme: config.editorTheme,
             tabSize: config.editorTabSize,
             indentUnit: 4,
+            indentWithTabs: true,
             foldGutter: true,
             cursorHeight: 1,
             path: data.path,
+            readOnly: wide.curNode.isGOAPI,
             profile: 'xhtml', // define Emmet output profile
             extraKeys: {
                 "Ctrl-\\": "autocompleteAnyWord",
@@ -826,10 +805,6 @@ var editors = {
             $(".footer .cursor").text('|   ' + (cursor.line + 1) + ':' + (cursor.ch + 1) + '   |');
         });
 
-        editor.on('focus', function (cm) {
-            windows.clearFloat();
-        });
-
         editor.on('blur', function (cm) {
             $(".edit-exprinfo").remove();
         });
@@ -842,13 +817,47 @@ var editors = {
                         $span.removeClass("changed");
                     }
                 });
-            } else {
-                $(".edit-panel .tabs > div").each(function () {
-                    var $span = $(this).find("span:eq(0)");
-                    if ($span.attr("title") === cm.options.path) {
-                        $span.addClass("changed");
-                    }
-                });
+
+                return;
+            }
+
+            // changed
+
+            $(".edit-panel .tabs > div").each(function () {
+                var $span = $(this).find("span:eq(0)");
+                if ($span.attr("title") === cm.options.path) {
+                    $span.addClass("changed");
+                }
+            });
+        });
+
+        editor.on('keydown', function (cm, evt) {
+            if (evt.altKey || evt.ctrlKey || evt.shiftKey) {
+                return;
+            }
+
+            var k = evt.which;
+
+            if (k < 48) {
+                return;
+            }
+
+            // hit [0-9]
+
+            if (k > 57 && k < 65) {
+                return;
+            }
+
+            // hit [a-z]
+
+            if (k > 90) {
+                return;
+            }
+
+            if (config.autocomplete) {
+                if (0.5 <= Math.random()) {
+                    CodeMirror.commands.autocompleteAfterDot(cm);
+                }
             }
         });
 

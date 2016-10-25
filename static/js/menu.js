@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, b3log.org
+ * Copyright (c) 2014-2016, b3log.org & hacpai.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+/*
+ * @file menu.js
+ *
+ * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
+ * @author <a href="http://88250.b3log.org">Liang Ding</a>
+ * @version 1.0.0.1, Dec 8, 2015
+ */
 var menu = {
     init: function () {
         this.subMenu();
@@ -156,9 +163,9 @@ var menu = {
             url: config.context + '/logout',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
-                if (data.succ) {
-                    window.location.href = "/login";
+            success: function (result) {
+                if (result.succ) {
+                    window.location.href = config.context + "/login";
                 }
             }
         });
@@ -186,10 +193,10 @@ var menu = {
             url: config.context + '/go/get',
             data: JSON.stringify(request),
             dataType: "json",
-            beforeSend: function (data) {
+            beforeSend: function () {
                 bottomGroup.resetOutput();
             },
-            success: function (data) {
+            success: function (result) {
             }
         });
     },
@@ -213,10 +220,10 @@ var menu = {
             url: config.context + '/go/install',
             data: JSON.stringify(request),
             dataType: "json",
-            beforeSend: function (data) {
+            beforeSend: function () {
                 bottomGroup.resetOutput();
             },
-            success: function (data) {
+            success: function (result) {
             }
         });
     },
@@ -241,10 +248,10 @@ var menu = {
             url: config.context + '/go/test',
             data: JSON.stringify(request),
             dataType: "json",
-            beforeSend: function (data) {
+            beforeSend: function () {
                 bottomGroup.resetOutput();
             },
-            success: function (data) {
+            success: function (result) {
             }
         });
     },
@@ -269,10 +276,10 @@ var menu = {
             url: config.context + '/go/vet',
             data: JSON.stringify(request),
             dataType: "json",
-            beforeSend: function (data) {
+            beforeSend: function () {
                 bottomGroup.resetOutput();
             },
-            success: function (data) {
+            success: function (result) {
             }
         });
     },
@@ -304,10 +311,10 @@ var menu = {
             url: config.context + '/build',
             data: JSON.stringify(request),
             dataType: "json",
-            beforeSend: function (data) {
+            beforeSend: function () {
                 bottomGroup.resetOutput();
             },
-            success: function (data) {
+            success: function (result) {
                 $("#buildRun").addClass("ico-stop")
                         .removeClass("ico-buildrun").attr("title", config.label.stop);
             }
@@ -336,10 +343,10 @@ var menu = {
             url: config.context + '/build',
             data: JSON.stringify(request),
             dataType: "json",
-            beforeSend: function (data) {
+            beforeSend: function () {
                 bottomGroup.resetOutput();
             },
-            success: function (data) {
+            success: function (result) {
             }
         });
     },
@@ -404,7 +411,7 @@ var menu = {
                 "modal": true,
                 "height": 280,
                 "width": 800,
-                "title": config.label.perference,
+                "title": config.label.preference,
                 "okText": config.label.apply,
                 "cancelText": config.label.cancel,
                 "afterOpen": function () {
@@ -445,7 +452,7 @@ var menu = {
                         "editorTabSize": $editorTabSize.val(),
                         "keymap": $keymap.val()
                     });
-                    
+
                     if (config.keymap !== $keymap.val()) {
                         window.location.reload();
                     }
@@ -454,8 +461,8 @@ var menu = {
                         type: 'POST',
                         url: config.context + '/preference',
                         data: JSON.stringify(request),
-                        success: function (data, textStatus, jqXHR) {
-                            if (!data.succ) {
+                        success: function (result, textStatus, jqXHR) {
+                            if (!result.succ) {
                                 return false;
                             }
 
@@ -473,7 +480,7 @@ var menu = {
                             $editorTheme.data("value", $editorTheme.val());
                             $editorTabSize.data("value", $editorTabSize.val());
                             $keymap.data("value", $keymap.val());
-                            
+
                             // update the config
                             config.keymap = $keymap.val();
 

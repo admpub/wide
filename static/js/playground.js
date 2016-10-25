@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, b3log.org
+ * Copyright (c) 2014-2016, b3log.org & hacpai.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
+/*
+ * @file playground.js
+ *
+ * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
+ * @author <a href="http://88250.b3log.org">Liang Ding</a>
+ * @version 1.0.0.1, Dec 8, 2015
+ */
 var playground = {
+    autocompleteMutex: false,
     editor: undefined,
     pid: undefined,
     _resize: function () {
@@ -82,6 +90,13 @@ var playground = {
 
             var autocompleteHints = [];
 
+            if (playground.autocompleteMutex && editor.state.completionActive) {
+                console.log(1);
+                return;
+            }
+
+            playground.autocompleteMutex = true;
+
             $.ajax({
                 async: false, // 同步执行
                 type: 'POST',
@@ -137,6 +152,10 @@ var playground = {
                 }
             });
 
+            setTimeout(function () {
+                playground.autocompleteMutex = false;
+            }, 20);
+
             return {list: autocompleteHints, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end)};
         });
 
@@ -167,7 +186,6 @@ var playground = {
 
         playground.editor = CodeMirror.fromTextArea($("#editor")[0], {
             lineNumbers: true,
-            autofocus: true,
             autoCloseBrackets: true,
             matchBrackets: true,
             highlightSelectionMatches: {showToken: /\w/},
@@ -176,6 +194,7 @@ var playground = {
             theme: "wide",
             tabSize: 4,
             indentUnit: 4,
+            indentWithTabs: true,
             foldGutter: true,
             cursorHeight: 1,
             viewportMargin: 500,
@@ -184,7 +203,7 @@ var playground = {
                 ".": "autocompleteAfterDot"
             }
         });
-        
+
         playground.editor.setOption("gutters", ["CodeMirror-lint-markers", "CodeMirror-foldgutter"]);
 
         $(window).resize(function () {
@@ -196,7 +215,7 @@ var playground = {
         } else {
             playground.editor.setSize("auto", $("#editor").height() + "px");
         }
-        
+
         var hovered = false;
         $(".menu .ico-share").hover(function () {
             $(".menu .share-panel").show();
@@ -224,6 +243,36 @@ var playground = {
 
         playground.editor.on('changes', function (cm) {
             $("#url").html("");
+        });
+
+        playground.editor.on('keydown', function (cm, evt) {
+            if (evt.altKey || evt.ctrlKey || evt.shiftKey) {
+                return;
+            }
+
+            var k = evt.which;
+
+            if (k < 48) {
+                return;
+            }
+
+            // hit [0-9]
+
+            if (k > 57 && k < 65) {
+                return;
+            }
+
+            // hit [a-z]
+
+            if (k > 90) {
+                return;
+            }
+
+            if (config.autocomplete) {
+                if (0.5 <= Math.random()) {
+                    CodeMirror.commands.autocompleteAfterDot(cm);
+                }
+            }
         });
 
         this._initWS();
@@ -292,10 +341,12 @@ var playground = {
             url: config.context + '/playground/save',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
+            success: function (result) {
+                var data = result.data;
+                
                 playground.editor.setValue(data.code);
 
-                if (!data.succ) {
+                if (!result.succ) {
                     console.log(data);
                     return;
                 }
@@ -309,9 +360,9 @@ var playground = {
                     url: config.context + '/playground/short-url',
                     data: JSON.stringify(request),
                     dataType: "json",
-                    success: function (data) {
-                        if (!data.succ) {
-                            console.log(data);
+                    success: function (result) {
+                        if (!result.succ) {
+                            console.log(result);
                             return;
                         }
 
@@ -319,8 +370,8 @@ var playground = {
                                 + config.label.colon + '</label><a href="'
                                 + url + '" target="_blank">' + url + "</a><br/>";
                         html += '<label>' + config.label.short_url + config.label.colon
-                                + '</label><a href="' + data.shortURL + '" target="_blank">'
-                                + data.shortURL + '</a><br/>';
+                                + '</label><a href="' + result.data + '" target="_blank">'
+                                + result.data + '</a><br/>';
                         html += '<label>' + config.label.embeded + config.label.colon
                                 + '</label><br/><textarea rows="5" style="width:100%" readonly><iframe style="border:1px solid" src="'
                                 + url + '?embed=true" width="99%" height="600"></iframe></textarea>';
@@ -392,12 +443,13 @@ var playground = {
             url: config.context + '/playground/save',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
-                // console.log(data);
+            success: function (result) {
+                var data = result.data;
+                
                 playground.editor.setValue(data.code);
                 playground.editor.setCursor(cursor);
 
-                if (!data.succ) {
+                if (!result.succ) {
                     return;
                 }
 
@@ -410,12 +462,14 @@ var playground = {
                     url: config.context + '/playground/build',
                     data: JSON.stringify(request),
                     dataType: "json",
-                    success: function (data) {
-                        // console.log(data);
+                    success: function (result) {
+                        console.log(result);
+                        
+                        var data = result.data;
 
                         $("#output").val(data.output);
 
-                        if (!data.succ) {
+                        if (!result.succ) {
                             return;
                         }
 
@@ -428,7 +482,7 @@ var playground = {
                             url: config.context + '/playground/run',
                             data: JSON.stringify(request),
                             dataType: "json",
-                            success: function (data) {
+                            success: function (result) {
                                 // console.log(data);
                             }
                         });
@@ -455,8 +509,8 @@ var playground = {
             url: config.context + '/playground/save',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
-                playground.editor.setValue(data.code);
+            success: function (result) {
+                playground.editor.setValue(result.data.code);
                 playground.editor.setCursor(cursor);
             }
         });

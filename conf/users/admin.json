@@ -9,7 +9,7 @@
     "GoFormat": "gofmt",
     "FontFamily": "Helvetica",
     "FontSize": "13px",
-    "Theme": "default",
+    "Theme": "dark",
     "Keymap": "wide",
     "Created": 1414080000000000000,
     "Updated": 1414080000000000000,
@@ -18,16 +18,28 @@
         "FontFamily": "Consolas, 'Courier New', monospace",
         "FontSize": "13px",
         "LineHeight": "17px",
-        "Theme": "wide",
+        "Theme": "lesser-dark",
         "TabSize": "4"
     },
     "LatestSessionContent": {
-        "FileTree": [],
-        "Files": [],
-        "CurrentFile": "",
-        "FileTreeLayout": null,
-        "EditorLayout": null,
-        "OutlineLayout": null,
-        "BottomLayout": null
+        "fileTree": [
+        ],
+        "files": [
+        ],
+        "currentFile": "",
+        "layout": {
+            "side": {
+                "state": "normal",
+                "size": 200
+            },
+            "sideRight": {
+                "state": "normal",
+                "size": 200
+            },
+            "bottom": {
+                "state": "normal",
+                "size": 100
+            }
+        }
     }
 }

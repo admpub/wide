@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/b3log/wide/conf"
@@ -30,8 +29,9 @@ import (
 )
 
 const (
-	outputBufMax  = 128 // 128 string(rune)
-	outputTimeout = 100 // 100ms
+	outputBufMax   = 1024 // 1024 string(rune)
+	outputTimeout  = 100  // 100ms
+	outputCountMax = 30   // 30 reads
 )
 
 type outputBuf struct {
@@ -41,20 +41,20 @@ type outputBuf struct {
 
 // RunHandler handles request of executing a binary file.
 func RunHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 	}
 
 	sid := args["sid"].(string)
 	wSession := session.WideSessions.Get(sid)
 	if nil == wSession {
-		data["succ"] = false
+		result.Succ = false
 	}
 
 	filePath := args["executable"].(string)
@@ -68,13 +68,13 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 	stdout, err := cmd.StdoutPipe()
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 	}
 
 	outReader := bufio.NewReader(stdout)
@@ -82,14 +82,14 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := cmd.Start(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 	}
 
 	wsChannel := session.PlaygroundWS[sid]
 
 	channelRet := map[string]interface{}{}
 
-	if !data["succ"].(bool) {
+	if !result.Succ {
 		if nil != wsChannel {
 			channelRet["cmd"] = "run-done"
 			channelRet["output"] = ""
@@ -134,6 +134,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 			defer util.Recover()
 
 			buf := outputBuf{}
+			count := 0
 
 			for {
 				wsChannel := session.PlaygroundWS[sid]
@@ -142,6 +143,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				r, _, err := outReader.ReadRune()
+				count++
 
 				if nil != err {
 					// remove the exited process from user process set
@@ -163,8 +165,6 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				oneRuneStr := string(r)
-				oneRuneStr = strings.Replace(oneRuneStr, "<", "&lt;", -1)
-				oneRuneStr = strings.Replace(oneRuneStr, ">", "&gt;", -1)
 
 				buf.content += oneRuneStr
 
@@ -174,11 +174,14 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 					buf.millisecond = now
 				}
 
-				if now-outputTimeout >= buf.millisecond || len(buf.content) > outputBufMax || oneRuneStr == "\n" {
+				flood := count > outputCountMax
+
+				if "\n" == oneRuneStr && !flood {
 					channelRet["cmd"] = "run"
 					channelRet["output"] = buf.content
 
 					buf = outputBuf{} // a new buffer
+					count = 0         // clear count
 
 					err = wsChannel.WriteJSON(&channelRet)
 					if nil != err {
@@ -187,6 +190,26 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 					}
 
 					wsChannel.Refresh()
+
+					continue
+				}
+
+				if now-outputTimeout >= buf.millisecond || len(buf.content) > outputBufMax {
+					channelRet["cmd"] = "run"
+					channelRet["output"] = buf.content
+
+					buf = outputBuf{} // a new buffer
+					count = 0         // clear count
+
+					err = wsChannel.WriteJSON(&channelRet)
+					if nil != err {
+						logger.Warn(err)
+						break
+					}
+
+					wsChannel.Refresh()
+
+					continue
 				}
 			}
 		}()
@@ -201,8 +224,6 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			oneRuneStr := string(r)
-			oneRuneStr = strings.Replace(oneRuneStr, "<", "&lt;", -1)
-			oneRuneStr = strings.Replace(oneRuneStr, ">", "&gt;", -1)
 
 			buf.content += oneRuneStr
 
@@ -214,7 +235,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 
 			if now-outputTimeout >= buf.millisecond || len(buf.content) > outputBufMax || oneRuneStr == "\n" {
 				channelRet["cmd"] = "run"
-				channelRet["output"] = "<span class='stderr'>" + buf.content + "</span>"
+				channelRet["output"] = buf.content
 
 				buf = outputBuf{} // a new buffer
 
@@ -232,13 +253,13 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 
 // StopHandler handles request of stoping a running process.
 func StopHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -248,7 +269,7 @@ func StopHandler(w http.ResponseWriter, r *http.Request) {
 
 	wSession := session.WideSessions.Get(sid)
 	if nil == wSession {
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}

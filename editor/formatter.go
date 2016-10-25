@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ import (
 //  1. gofmt
 //  2. goimports
 func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	session, _ := session.HTTPSession.Get(r, "wide-session")
 	if session.IsNew {
@@ -46,7 +46,7 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -54,7 +54,8 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 	filePath := args["file"].(string)
 
 	if util.Go.IsAPI(filePath) {
-		// ignore it
+		result.Succ = false
+
 		return
 	}
 
@@ -62,7 +63,7 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 
 	if nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
@@ -72,10 +73,17 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 	fout.WriteString(code)
 	if err := fout.Close(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}
+
+	data := map[string]interface{}{}
+	result.Data = &data
+
+	data["code"] = code
+
+	result.Data = data
 
 	fmt := conf.GetGoFmt(username)
 
@@ -86,8 +94,7 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 	output := string(bytes)
 	if "" == output {
 		// format error, returns the original content
-		data["succ"] = true
-		data["code"] = code
+		result.Succ = true
 
 		return
 	}
@@ -99,7 +106,7 @@ func GoFmtHandler(w http.ResponseWriter, r *http.Request) {
 	fout.WriteString(code)
 	if err := fout.Close(); nil != err {
 		logger.Error(err)
-		data["succ"] = false
+		result.Succ = false
 
 		return
 	}

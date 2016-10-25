@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,27 @@ type mygo struct{}
 // Go utilities.
 var Go = mygo{}
 
+func (*mygo) GetCrossPlatforms() []string {
+	ret := []string{}
+
+	toolDir := runtime.GOROOT() + "/pkg/tool"
+	f, _ := os.Open(toolDir)
+	names, _ := f.Readdirnames(-1)
+	f.Close()
+
+	for _, name := range names {
+		subDir, _ := os.Open(toolDir + "/" + name)
+		tools, _ := subDir.Readdirnames(10)
+		subDir.Close()
+
+		if len(tools) > 5 {
+			ret = append(ret, name)
+		}
+	}
+
+	return ret
+}
+
 // GetAPIPath gets the Go source code path.
 //
 //  1. before Go 1.4: $GOROOT/src/pkg
@@ -50,7 +71,7 @@ func (*mygo) GetAPIPath() string {
 func (*mygo) IsAPI(path string) bool {
 	apiPath := Go.GetAPIPath()
 
-	return strings.HasPrefix(path, apiPath)
+	return strings.HasPrefix(filepath.FromSlash(path), apiPath)
 }
 
 // GetGoFormats gets Go format tools. It may return ["gofmt", "goimports"].

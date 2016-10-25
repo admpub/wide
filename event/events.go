@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ const (
 	EvtCodeGOROOTNotFound
 	// EvtCodeGocodeNotFound indicates an event: not found gocode
 	EvtCodeGocodeNotFound
-	// EvtCodeIDEStubNotFound indicates an event: not found ide_stub
+	// EvtCodeIDEStubNotFound indicates an event: not found gotools
 	EvtCodeIDEStubNotFound
 	// EvtCodeServerInternalError indicates an event: server internal error
 	EvtCodeServerInternalError
@@ -92,14 +92,14 @@ func (uq *UserEventQueue) AddHandler(handlers ...Handler) {
 
 // New initializes a user event queue with the specified wide session id.
 func (ueqs queues) New(sid string) *UserEventQueue {
-	q := ueqs[sid]
-	if nil != q {
+
+	if q, ok := ueqs[sid]; ok {
 		logger.Warnf("Already exist a user queue in session [%s]", sid)
 
 		return q
 	}
 
-	q = &UserEventQueue{
+	q := &UserEventQueue{
 		Sid:   sid,
 		Queue: make(chan *Event, maxQueueLength),
 	}
@@ -124,14 +124,11 @@ func (ueqs queues) New(sid string) *UserEventQueue {
 
 // Close closes a user event queue with the specified wide session id.
 func (ueqs queues) Close(sid string) {
-	q := ueqs[sid]
-	if nil == q {
-		return
+
+	if q, ok := ueqs[sid]; ok {
+		close(q.Queue)
+		delete(ueqs, sid)
 	}
-
-	close(q.Queue)
-
-	delete(ueqs, sid)
 }
 
 // Handler represents an event handler.

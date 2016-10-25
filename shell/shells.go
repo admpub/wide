@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,10 @@ package shell
 
 import (
 	"html/template"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +44,7 @@ var logger = log.NewLogger(os.Stdout)
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	httpSession, _ := session.HTTPSession.Get(r, "wide-session")
 	if httpSession.IsNew {
-		http.Redirect(w, r, conf.Wide.Context+"login", http.StatusFound)
+		http.Redirect(w, r, conf.Wide.Context+"/login", http.StatusFound)
 
 		return
 	}
@@ -57,16 +55,11 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	httpSession.Save(r, w)
 
-	// create a wide session
-	rand.Seed(time.Now().UnixNano())
-	sid := strconv.Itoa(rand.Int())
-	wideSession := session.WideSessions.New(httpSession, sid)
-
 	username := httpSession.Values["username"].(string)
 	locale := conf.GetUser(username).Locale
 
 	model := map[string]interface{}{"conf": conf.Wide, "i18n": i18n.GetAll(locale), "locale": locale,
-		"session": wideSession}
+		"sid": session.WideSessions.GenId()}
 
 	wideSessions := session.WideSessions.GetByUsername(username)
 

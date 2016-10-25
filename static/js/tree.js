@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, b3log.org
+ * Copyright (c) 2014-2016, b3log.org & hacpai.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+/*
+ * @file tree.js
+ *
+ * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
+ * @author <a href="http://88250.b3log.org">Liang Ding</a>
+ * @version 1.0.1.1, Dec 15, 2015
+ */
 var tree = {
     fileTree: undefined,
     // 递归获取当前节点展开中的最后一个节点
@@ -156,9 +163,9 @@ var tree = {
             url: config.context + '/file/zip/new',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
-                if (!data.succ) {
-                    $("#dialogAlert").dialog("open", data.msg);
+            success: function (result) {
+                if (!result.succ) {
+                    $("#dialogAlert").dialog("open", result.msg);
 
                     return false;
                 }
@@ -171,6 +178,26 @@ var tree = {
             window.open(config.context + '/file/zip?path=' + wide.curNode.path + ".zip");
         }
     },
+    crossCompile: function (platform) {
+        var request = newWideRequest();
+        request.path = wide.curNode.path;
+        request.platform = platform;
+
+        $.ajax({
+            async: false,
+            type: 'POST',
+            url: config.context + '/cross',
+            data: JSON.stringify(request),
+            dataType: "json",
+            success: function (result) {
+                if (!result.succ) {
+                    $("#dialogAlert").dialog("open", result.msg);
+
+                    return false;
+                }
+            }
+        });
+    },
     decompress: function () {
         var request = newWideRequest();
         request.path = wide.curNode.path;
@@ -181,9 +208,9 @@ var tree = {
             url: config.context + '/file/decompress',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
-                if (!data.succ) {
-                    $("#dialogAlert").dialog("open", data.msg);
+            success: function (result) {
+                if (!result.succ) {
+                    $("#dialogAlert").dialog("open", result.msg);
 
                     return false;
                 }
@@ -219,7 +246,7 @@ var tree = {
             url: "/file/upload?path=" + request.path,
             dataType: 'json',
             formData: request,
-            done: function (e, data) {
+            done: function (e, result) {
                 tree.fileTree.reAsyncChildNodes(wide.curNode, "refresh");
             },
             fail: function () {
@@ -239,8 +266,8 @@ var tree = {
             url: config.context + '/files',
             data: JSON.stringify(request),
             dataType: "json",
-            success: function (data) {
-                if (data.succ) {
+            success: function (result) {
+                if (result.succ) {
                     var $dirRMenu = $("#dirRMenu");
                     var $fileRMenu = $("#fileRMenu");
                     var setting = {
@@ -278,10 +305,16 @@ var tree = {
                                             $fileRMenu.find(".remove").addClass("disabled");
                                         }
 
-                                        if (wide.curNode.path.indexOf("zip", wide.curNode.path.length - "zip".length) === -1) { // !path.endsWith("zip")
+                                        if (-1 === wide.curNode.path.indexOf("zip", wide.curNode.path.length - "zip".length)) { // !path.endsWith("zip")
                                             $fileRMenu.find(".decompress").hide();
                                         } else {
                                             $fileRMenu.find(".decompress").show();
+                                        }
+
+                                        if (-1 === wide.curNode.path.indexOf("go", wide.curNode.path.length - "go".length)) { // !path.endsWith("go")
+                                            $fileRMenu.find(".linux64").hide();
+                                        } else {
+                                            $fileRMenu.find(".linux64").show();
                                         }
 
                                         var top = event.clientY - 10;
@@ -341,7 +374,7 @@ var tree = {
                             }
                         }
                     };
-                    tree.fileTree = $.fn.zTree.init($("#files"), setting, data.root.children);
+                    tree.fileTree = $.fn.zTree.init($("#files"), setting, result.data.children);
 
                     session.restore();
                 }
@@ -387,18 +420,24 @@ var tree = {
                 url: config.context + '/file',
                 data: JSON.stringify(request),
                 dataType: "json",
-                success: function (data) {
-                    if (!data.succ) {
-                        $("#dialogAlert").dialog("open", data.msg);
+                success: function (result) {
+                    if (!result.succ) {
+                        $("#dialogAlert").dialog("open", result.msg);
 
                         return false;
                     }
 
+                    var data = result.data;
+
                     if (!data.mode) {
                         var mode = CodeMirror.findModeByFileName(treeNode.path);
-                        data.mode = mode.mime;
+                        if (mode) {
+                            data.mode = mode.mime;
+                        } else {
+                            data.mode = 'text/plain';
+                        }
                     }
-                    
+
                     if (!data.mode) {
                         console.error("Can't find mode by file name [" + treeNode.path + "]");
                     }
@@ -412,7 +451,7 @@ var tree = {
                     if (!tempCursor) {
                         tempCursor = CodeMirror.Pos(0, 0);
                     }
-                    
+
                     editors.newEditor(data, tempCursor);
 
                     wide.refreshOutline();
@@ -470,13 +509,13 @@ var tree = {
                     url: config.context + '/file/search/text',
                     data: JSON.stringify(request),
                     dataType: "json",
-                    success: function (data) {
-                        if (!data.succ) {
+                    success: function (result) {
+                        if (!result.succ) {
                             return;
                         }
 
                         $("#dialogSearchForm").dialog("close");
-                        editors.appendSearch(data.founds, 'founds', request.text);
+                        editors.appendSearch(result.data, 'founds', request.text);
                     }
                 });
             }
@@ -499,18 +538,15 @@ var tree = {
                         request = newWideRequest();
 
                 request.oldPath = wide.curNode.path;
-
-                request.newPath = wide.curNode.path.substring(0,
-                        wide.curNode.path.lastIndexOf(config.pathSeparator))
-                        + config.pathSeparator + name;
+                request.newPath = wide.curNode.path.substring(0, wide.curNode.path.lastIndexOf("/") + 1) + name;
 
                 $.ajax({
                     type: 'POST',
                     url: config.context + '/file/rename',
                     data: JSON.stringify(request),
                     dataType: "json",
-                    success: function (data) {
-                        if (!data.succ) {
+                    success: function (result) {
+                        if (!result.succ) {
                             $("#dialogRenamePrompt").dialog("close");
                             bottomGroup.tabs.setCurrent("notification");
                             windows.flowBottom();
@@ -519,37 +555,6 @@ var tree = {
                         }
 
                         $("#dialogRenamePrompt").dialog("close");
-
-                        // update tree node
-                        var suffixIndex = name.lastIndexOf('.');
-                        var suffix = name.substr(suffixIndex + 1);
-
-                        var iconSkin = 'ico-ztree-dir ';
-                        if ('f' === wide.curNode.type) {
-                            iconSkin = wide.getClassBySuffix(suffix);
-                        }
-
-                        wide.curNode.name = name;
-                        wide.curNode.title = request.newPath;
-                        wide.curNode.path = request.newPath;
-                        wide.curNode.iconSkin = iconSkin;
-
-                        tree.fileTree.updateNode(wide.curNode);
-
-                        // update open editor tab name
-                        for (var i = 0, ii = editors.data.length; i < ii; i++) {
-                            if (wide.curNode.path === editors.data[i].id) {
-                                var mode = CodeMirror.findModeByExtension(suffix);
-                                if (mode) {
-                                    editors.data[i].editor.setOption("mode", mode.mime);
-                                }
-
-                                var $currentSpan = $('.edit-panel .tabs > div[data-index="' + wide.curNode.path + '"] > span:eq(0)');
-                                $currentSpan.attr("title", request.newPath);
-                                $currentSpan.html('<span class="' + iconSkin + 'ico"></span>' + wide.curNode.name);
-                                break;
-                            }
-                        }
                     }
                 });
             }

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2015, b3log.org
+// Copyright (c) 2014-2016, b3log.org & hacpai.com
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 	httpSession, _ := HTTPSession.Get(r, "wide-session")
 
 	if httpSession.IsNew {
-		http.Redirect(w, r, conf.Wide.Context+"login", http.StatusFound)
+		http.Redirect(w, r, conf.Wide.Context+"/login", http.StatusFound)
 
 		return
 	}
@@ -88,9 +88,8 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 
 	// non-GET request as save request
 
-	succ := true
-	data := map[string]interface{}{"succ": &succ}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	args := struct {
 		FontFamily       string
@@ -112,7 +111,7 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		succ = false
+		result.Succ = false
 
 		return
 	}
@@ -146,7 +145,7 @@ func PreferenceHandler(w http.ResponseWriter, r *http.Request) {
 	user.Lived = now
 	user.Updated = now
 
-	succ = user.Save()
+	result.Succ = user.Save()
 }
 
 // LoginHandler handles request of user login.
@@ -172,10 +171,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// non-GET request as login request
-
-	succ := true
-	data := map[string]interface{}{"succ": &succ}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	args := struct {
 		Username string
@@ -185,16 +182,16 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	args.Username = r.FormValue("username")
 	args.Password = r.FormValue("password")
 
-	succ = false
+	result.Succ = false
 	for _, user := range conf.Users {
 		if user.Name == args.Username && user.Password == conf.Salt(args.Password, user.Salt) {
-			succ = true
+			result.Succ = true
 
 			break
 		}
 	}
 
-	if !succ {
+	if !result.Succ {
 		return
 	}
 
@@ -213,8 +210,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // LogoutHandler handles request of user logout (exit).
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{"succ": true}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	httpSession, _ := HTTPSession.Get(r, "wide-session")
 
@@ -250,15 +247,14 @@ func SignUpUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	// non-GET request as add user request
 
-	succ := true
-	data := map[string]interface{}{"succ": &succ}
-	defer util.RetJSON(w, r, data)
+	result := util.NewResult()
+	defer util.RetResult(w, r, result)
 
 	var args map[string]interface{}
 
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		logger.Error(err)
-		succ = false
+		result.Succ = false
 
 		return
 	}
@@ -269,8 +265,8 @@ func SignUpUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	msg := addUser(username, password, email)
 	if userCreated != msg {
-		succ = false
-		data["msg"] = msg
+		result.Succ = false
+		result.Msg = msg
 
 		return
 	}
@@ -303,6 +299,22 @@ func FixedTimeSave() {
 			}
 		}
 	}()
+}
+
+// CanAccess determines whether the user specified by the given username can access the specified path.
+func CanAccess(username, path string) bool {
+	path = filepath.FromSlash(path)
+
+	userWorkspace := conf.GetUserWorkspace(username)
+	workspaces := filepath.SplitList(userWorkspace)
+
+	for _, workspace := range workspaces {
+		if strings.HasPrefix(path, workspace) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func getOnlineUsers() []*conf.User {
